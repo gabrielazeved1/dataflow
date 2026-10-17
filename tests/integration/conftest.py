@@ -1,12 +1,16 @@
+import boto3
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
 
+from api.config import settings
 from api.database import Base, get_db
 from api.main import app
 
-TEST_DATABASE_URL = "postgresql+psycopg2://dataflow:changeme@localhost:5432/dataflow"
+settings.minio_endpoint = "localhost:9000"
+
+TEST_DATABASE_URL = "postgresql+psycopg://dataflow:changeme@localhost:5432/dataflow"
 
 engine = create_engine(TEST_DATABASE_URL)
 TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
@@ -43,3 +47,13 @@ def client(db):
     with TestClient(app) as c:
         yield c
     app.dependency_overrides.clear()
+
+
+@pytest.fixture
+def minio_client():
+    return boto3.client(
+        "s3",
+        endpoint_url="http://localhost:9000",
+        aws_access_key_id="minioadmin",
+        aws_secret_access_key="minioadmin",
+    )

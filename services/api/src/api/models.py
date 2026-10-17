@@ -38,3 +38,4 @@ class Execution(Base):
     file_name = Column(String, nullable=True)
     file_size = Column(BigInteger, nullable=True)
     checksum = Column(String, nullable=True)
+    storage_path = Column(String, nullable=True)
