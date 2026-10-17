@@ -31,5 +31,6 @@ class ExecutionResponse(BaseModel):
     file_name: str | None = None
     file_size: int | None = None
     checksum: str | None = None
+    storage_path: str | None = None
 
     model_config = {"from_attributes": True}
