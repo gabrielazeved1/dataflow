@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 
 from api.config import settings
 from api.database import get_db
-from api.models import Dataset, Execution
+from dataflow_common.models import Dataset, Execution
 from api.schemas import ExecutionResponse
 from api.storage import StorageUnavailableError, upload_bronze
 
@@ -23,6 +23,7 @@ def ingest(dataset_id: UUID, file: UploadFile = File(...), db: Session = Depends
 
     execution = Execution(
         dataset_id=dataset.id,
+        layer="BRONZE",
         status="RUNNING",
         started_at=datetime.now(timezone.utc),
         file_name=file.filename,
