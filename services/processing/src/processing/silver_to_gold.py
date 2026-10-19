@@ -1,15 +1,3 @@
-"""
-Transforma uma execução Silver em Gold para o dataset vendas_diarias.
-
-Uso:
-    python -m processing.silver_to_gold <silver_execution_id>
-
-Lê o Parquet Silver, agrega por data (total_quantidade e total_valor),
-e escreve o resultado como Parquet em Gold.
-
-Granularidade Gold: uma linha por data — total de quantidade vendida e
-valor total (quantidade × valor_unitario) por dia.
-"""
 import io
 import sys
 from datetime import datetime, timezone
@@ -36,8 +24,12 @@ def run(silver_execution_id: UUID) -> None:
             raise ValueError(f"Execução {silver_execution_id} não é da camada SILVER")
         if silver_exec.status != "SUCCESS":
             raise ValueError(f"Execução {silver_execution_id} está com status {silver_exec.status}, esperado SUCCESS")
+        if not silver_exec.storage_path:
+            raise ValueError(f"Execução {silver_execution_id} não tem storage_path")
 
         dataset = repository.get_dataset(session, silver_exec.dataset_id)
+        if not dataset:
+            raise ValueError(f"Dataset {silver_exec.dataset_id} não encontrado")
 
         gold_exec = repository.create_execution(
             session,

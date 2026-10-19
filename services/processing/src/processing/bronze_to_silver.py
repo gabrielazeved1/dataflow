@@ -1,13 +1,3 @@
-"""
-Transforma uma execução Bronze em Silver.
-
-Uso:
-    python -m processing.bronze_to_silver <execution_id>
-
-Lê o arquivo Bronze do MinIO, valida cada registro contra o schema do
-dataset, escreve os registros válidos como Parquet em Silver e os
-rejeitados em silver/<dataset>/_rejected/.
-"""
 import io
 import sys
 from datetime import datetime, timezone
@@ -86,8 +76,12 @@ def run(bronze_execution_id: UUID) -> None:
             raise ValueError(f"Execução {bronze_execution_id} não é da camada BRONZE")
         if bronze_exec.status != "SUCCESS":
             raise ValueError(f"Execução {bronze_execution_id} está com status {bronze_exec.status}, esperado SUCCESS")
+        if not bronze_exec.storage_path:
+            raise ValueError(f"Execução {bronze_execution_id} não tem storage_path")
 
         dataset = repository.get_dataset(session, bronze_exec.dataset_id)
+        if not dataset:
+            raise ValueError(f"Dataset {bronze_exec.dataset_id} não encontrado")
         campos = dataset.schema["campos"]
 
         silver_exec = repository.create_execution(
