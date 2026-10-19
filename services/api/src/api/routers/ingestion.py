@@ -21,6 +21,9 @@ def ingest(dataset_id: UUID, file: UploadFile = File(...), db: Session = Depends
     if not dataset:
         raise HTTPException(status_code=404, detail="Dataset não encontrado")
 
+    if not file.filename:
+        raise HTTPException(status_code=400, detail="Arquivo sem nome")
+
     execution = Execution(
         dataset_id=dataset.id,
         layer="BRONZE",
