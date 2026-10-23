@@ -1,3 +1,4 @@
+from collections import Counter
 from datetime import datetime
 from typing import Any, Literal
 from uuid import UUID
@@ -22,6 +23,16 @@ class CampoSchema(BaseModel):
 
 class DatasetSchema(BaseModel):
     campos: list[CampoSchema] = Field(min_length=1)
+
+    @model_validator(mode="after")
+    def nomes_de_campos_unicos(self) -> "DatasetSchema":
+        nomes = [campo.nome for campo in self.campos]
+        duplicados = sorted(
+            nome for nome, count in Counter(nomes).items() if count > 1
+        )
+        if duplicados:
+            raise ValueError(f"nomes de campos duplicados: {duplicados}")
+        return self
 
 
 class DatasetCreate(BaseModel):

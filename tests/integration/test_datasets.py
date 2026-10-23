@@ -31,6 +31,25 @@ def test_create_dataset_duplicate(client):
     assert response.status_code == 409
 
 
+def test_create_dataset_rejeita_campos_duplicados(client):
+    schema_invalido = {
+        "campos": [
+            {"nome": "id", "tipo": "integer", "obrigatorio": True},
+            {"nome": "valor", "tipo": "float", "obrigatorio": True},
+            {"nome": "id", "tipo": "string", "obrigatorio": True},
+        ]
+    }
+
+    response = client.post(
+        "/datasets/",
+        json={"nome": "dataset_invalido", "formato": "csv", "schema": schema_invalido},
+    )
+
+    assert response.status_code == 422
+    detail = response.json()["detail"]
+    assert any("id" in err["msg"] and "duplicad" in err["msg"] for err in detail)
+
+
 def test_get_dataset(client):
     create = client.post(
         "/datasets/", json={"nome": "vendas_diarias", "formato": "csv", "schema": VENDAS_SCHEMA}
