@@ -22,7 +22,7 @@ class Dataset(Base):
     id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     nome: Mapped[str] = mapped_column(String, unique=True)
     formato: Mapped[str] = mapped_column(String)
-    schema: Mapped[dict] = mapped_column(JSONB)
+    schema: Mapped[dict] = mapped_column(JSONB) # o postgres aceita um json , ou seja o schema mora como dado
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
 
 
