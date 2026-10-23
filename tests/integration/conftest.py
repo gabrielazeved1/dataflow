@@ -8,10 +8,8 @@ from api.config import settings
 from api.database import get_db
 from api.main import app
 from dataflow_common.models import Base
-from processing.config import settings as processing_settings
 
 settings.minio_endpoint = "localhost:9000"
-processing_settings.minio_endpoint = "localhost:9000"
 
 TEST_DATABASE_URL = "postgresql+psycopg://dataflow:changeme@localhost:5432/dataflow"
 
