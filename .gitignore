@@ -35,3 +35,6 @@ htmlcov/
 
 # Docs locais (arquitetura, roadmap, ADRs — não sobem para o GitHub)
 dataflow-docs/
+
+# Instruções locais pra IA (não sobem para o GitHub)
+CLAUDE.md
