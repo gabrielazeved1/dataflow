@@ -5,7 +5,7 @@ requires-python = ">=3.11"
 dependencies = []
 
 [tool.uv.workspace]
-members = ["services/api"]
+members = ["services/api", "libs/dataflow_common"]
 
 [tool.uv.sources]
 dataflow-api = { workspace = true }
@@ -30,6 +30,12 @@ line-length = 88
 
 [tool.ruff.lint]
 select = ["E", "F", "I"]
+
+[tool.pyrefly]
+search_path = [
+    "libs/dataflow_common/src",
+    "services/api/src",
+]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

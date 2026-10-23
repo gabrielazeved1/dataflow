@@ -5,8 +5,9 @@ from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
 
 from api.config import settings
-from api.database import Base, get_db
+from api.database import get_db
 from api.main import app
+from dataflow_common.models import Base
 
 settings.minio_endpoint = "localhost:9000"
 
@@ -18,6 +19,7 @@ TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engin
 
 @pytest.fixture(scope="session", autouse=True)
 def setup_database():
+    Base.metadata.drop_all(bind=engine)
     Base.metadata.create_all(bind=engine)
     yield
 
