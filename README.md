@@ -29,12 +29,12 @@ docker compose up --build
 
 Serviços disponíveis:
 
-| Serviço | URL |
-|---|---|
-| API | http://localhost:8000 |
+| Serviço            | URL                        |
+| ------------------ | -------------------------- |
+| API                | http://localhost:8000      |
 | API docs (Swagger) | http://localhost:8000/docs |
-| MinIO console | http://localhost:9001 |
-| PostgreSQL | localhost:5432 |
+| MinIO console      | http://localhost:9001      |
+| PostgreSQL         | localhost:5432             |
 
 Credenciais padrão de desenvolvimento estão no `.env.example`.
 
@@ -99,13 +99,10 @@ dataflow/
 
 O projeto evolui em versões incrementais — cada uma com objetivo e critério de conclusão definidos em [`dataflow-docs/docs/roadmap.md`](dataflow-docs/docs/roadmap.md).
 
-| Versão | Foco | Status |
-|---|---|---|
-| V0 | FastAPI + PostgreSQL + testes | em andamento |
-| V1 | MinIO (Bronze) | — |
-| V2 | Medallion formalizado + Parquet | — |
-| V3 | PySpark (Bronze→Silver→Gold) | — |
-| V4 | Celery + Redis (assíncrono) | — |
-| V5 | Confiabilidade | — |
-| V6 | CI/CD | — |
-| V7 | Deploy | — |
+| Versão | Foco                            | Status       |
+| ------ | ------------------------------- | ------------ |
+| V0     | FastAPI + PostgreSQL + testes   | em andamento |
+| V1     | MinIO (Bronze)                  | —            |
+| V2     | Medallion formalizado + Parquet | —            |
+| V3     | PySpark (Bronze→Silver→Gold)    | —            |
+| V4     | Celery + Redis (assíncrono)     | —            |
