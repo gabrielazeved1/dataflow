@@ -7,6 +7,8 @@ from dataflow_common.storage import download
 
 from processing.config import settings
 from processing.database import SessionLocal
+from processing.schema_mapper import build_struct_type
+from processing.spark import build_spark
 
 
 def main() -> None:
@@ -54,6 +56,17 @@ def main() -> None:
         local_path.write_bytes(bronze_bytes)
 
         print(f"[Download] {len(bronze_bytes)} bytes -> {local_path}")
+
+        struct_type = build_struct_type(dataset.schema)
+        spark = build_spark(f"bronze_to_silver:{silver_exec.id}")
+        try:
+            df = spark.read.csv(str(local_path), header=True, schema=struct_type)
+            print("[Spark] schema aplicado:")
+            df.printSchema()
+            print(f"[Spark] count={df.count()} (primeiras 5 linhas):")
+            df.show(5, truncate=False)
+        finally:
+            spark.stop()
 
 
 if __name__ == "__main__":
