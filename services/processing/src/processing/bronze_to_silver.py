@@ -1,6 +1,12 @@
 import sys
+from functools import reduce
+from operator import and_
 from pathlib import Path
 from uuid import UUID
+
+from pyspark.sql import Column, DataFrame
+from pyspark.sql.functions import col
+from pyspark.sql.types import StringType, StructField, StructType
 
 from dataflow_common.repository import create_execution, get_dataset, get_execution
 from dataflow_common.storage import download
@@ -9,6 +15,26 @@ from processing.config import settings
 from processing.database import SessionLocal
 from processing.schema_mapper import build_struct_type
 from processing.spark import build_spark
+
+
+def _build_is_valid(dataset_schema: dict) -> Column:
+    conditions: list[Column] = [col("_corrupt_record").isNull()]
+    for campo in dataset_schema["campos"]:
+        nome = campo["nome"]
+        if campo["obrigatorio"]:
+            conditions.append(col(nome).isNotNull())
+        if campo.get("min") is not None:
+            conditions.append(col(nome) >= campo["min"])
+        if campo.get("max") is not None:
+            conditions.append(col(nome) <= campo["max"])
+    return reduce(and_, conditions)
+
+
+def _split(df: DataFrame, dataset_schema: dict) -> tuple[DataFrame, DataFrame]:
+    is_valid = _build_is_valid(dataset_schema)
+    valid_df = df.filter(is_valid).drop("_corrupt_record")
+    rejected_df = df.filter(~is_valid)
+    return valid_df, rejected_df
 
 
 def main() -> None:
@@ -57,14 +83,30 @@ def main() -> None:
 
         print(f"[Download] {len(bronze_bytes)} bytes -> {local_path}")
 
-        struct_type = build_struct_type(dataset.schema)
+        base_struct = build_struct_type(dataset.schema)
+        read_struct = StructType(
+            base_struct.fields + [StructField("_corrupt_record", StringType(), True)]
+        )
         spark = build_spark(f"bronze_to_silver:{silver_exec.id}")
         try:
-            df = spark.read.csv(str(local_path), header=True, schema=struct_type)
-            print("[Spark] schema aplicado:")
-            df.printSchema()
-            print(f"[Spark] count={df.count()} (primeiras 5 linhas):")
-            df.show(5, truncate=False)
+            df = spark.read.csv(
+                str(local_path),
+                header=True,
+                schema=read_struct,
+                mode="PERMISSIVE",
+                columnNameOfCorruptRecord="_corrupt_record",
+            ).cache()
+
+            total = df.count()
+
+            valid_df, rejected_df = _split(df, dataset.schema)
+            valid_count = valid_df.count()
+            rejected_count = rejected_df.count()
+
+            print(f"[Split] total={total} valid={valid_count} rejected={rejected_count}")
+            if rejected_count > 0:
+                print("[Rejected] amostras:")
+                rejected_df.show(5, truncate=False)
         finally:
             spark.stop()
 
