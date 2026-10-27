@@ -1,4 +1,5 @@
 import sys
+from datetime import datetime, timezone
 from functools import reduce
 from operator import and_
 from pathlib import Path
@@ -8,8 +9,18 @@ from pyspark.sql import Column, DataFrame
 from pyspark.sql.functions import col
 from pyspark.sql.types import StringType, StructField, StructType
 
-from dataflow_common.repository import create_execution, get_dataset, get_execution
-from dataflow_common.storage import download
+from dataflow_common.repository import (
+    create_execution,
+    finish_execution,
+    get_dataset,
+    get_execution,
+)
+from dataflow_common.storage import (
+    build_silver_path,
+    build_silver_rejected_path,
+    download,
+    upload,
+)
 
 from processing.config import settings
 from processing.database import SessionLocal
@@ -107,6 +118,47 @@ def main() -> None:
             if rejected_count > 0:
                 print("[Rejected] amostras:")
                 rejected_df.show(5, truncate=False)
+
+            dt = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+
+            valid_local = Path("/tmp") / f"{silver_exec.id}_valid"
+            rejected_local = Path("/tmp") / f"{silver_exec.id}_rejected"
+
+            valid_df.coalesce(1).write.parquet(str(valid_local))
+            rejected_df.coalesce(1).write.parquet(str(rejected_local))
+
+            valid_part = next(valid_local.glob("part-*.parquet"))
+            rejected_part = next(rejected_local.glob("part-*.parquet"))
+
+            silver_key = build_silver_path(dataset.nome, dt, silver_exec.id)
+            rejected_key = build_silver_rejected_path(dataset.nome, silver_exec.id)
+
+            upload(
+                bucket=settings.minio_bucket,
+                key=silver_key,
+                body=valid_part.read_bytes(),
+                endpoint=settings.minio_endpoint,
+                access_key=settings.minio_access_key,
+                secret_key=settings.minio_secret_key,
+            )
+            upload(
+                bucket=settings.minio_bucket,
+                key=rejected_key,
+                body=rejected_part.read_bytes(),
+                endpoint=settings.minio_endpoint,
+                access_key=settings.minio_access_key,
+                secret_key=settings.minio_secret_key,
+            )
+
+            print(f"[Upload] valid -> {silver_key}")
+            print(f"[Upload] rejected -> {rejected_key}")
+
+            finish_execution(session, silver_exec, "SUCCESS", storage_path=silver_key)
+            print(f"[Done] status=SUCCESS")
+        except Exception as exc:
+            finish_execution(session, silver_exec, "FAILED", error_message=str(exc))
+            print(f"[Error] {exc}")
+            raise
         finally:
             spark.stop()
 
