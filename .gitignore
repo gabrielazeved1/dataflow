@@ -38,3 +38,9 @@ dataflow-docs/
 
 # Instruções locais pra IA (não sobem para o GitHub)
 CLAUDE.md
+
+# Spark (lixo que o Spark cria no cwd quando roda local)
+spark-warehouse/
+metastore_db/
+derby.log
+*.crc

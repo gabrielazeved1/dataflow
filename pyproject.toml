@@ -5,10 +5,11 @@ requires-python = ">=3.11"
 dependencies = []
 
 [tool.uv.workspace]
-members = ["services/api", "libs/dataflow_common"]
+members = ["services/api", "services/processing", "libs/dataflow_common"]
 
 [tool.uv.sources]
 dataflow-api = { workspace = true }
+dataflow-processing = { workspace = true }
 
 [dependency-groups]
 dev = [
@@ -18,6 +19,7 @@ dev = [
     "pytest-asyncio>=0.23",
     "httpx>=0.27",
     "dataflow-api",
+    "dataflow-processing",
 ]
 
 [tool.black]
@@ -35,6 +37,7 @@ select = ["E", "F", "I"]
 search_path = [
     "libs/dataflow_common/src",
     "services/api/src",
+    "services/processing/src",
 ]
 
 [tool.pytest.ini_options]
@@ -42,5 +45,6 @@ asyncio_mode = "auto"
 testpaths = ["tests"]
 pythonpath = [
     "services/api/src",
+    "services/processing/src",
     "libs/dataflow_common/src",
 ]
