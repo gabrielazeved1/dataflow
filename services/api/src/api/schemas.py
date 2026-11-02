@@ -73,3 +73,32 @@ class ExecutionResponse(BaseModel):
     checksum: str | None = None
     storage_path: str | None = None
     input_execution_id: UUID | None = None
+
+
+class ExecutionListItem(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    dataset_id: UUID
+    layer: str
+    status: str
+    created_at: datetime
+    started_at: datetime | None = None
+    finished_at: datetime | None = None
+    file_name: str | None = None
+    storage_path: str | None = None
+    input_execution_id: UUID | None = None
+
+
+class ExecutionMetricsResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    valid_count: int
+    rejected_count: int
+    rejection_rate: float
+    duration_seconds: float
+    corrupt_count: int
+
+
+class ExecutionDetailResponse(ExecutionResponse):
+    metrics: ExecutionMetricsResponse | None = None
