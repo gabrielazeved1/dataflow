@@ -8,6 +8,7 @@ from pyspark.sql.functions import col
 
 from dataflow_common.repository import (
     create_execution,
+    create_execution_metrics,
     finish_execution,
     get_dataset,
     get_execution,
@@ -143,6 +144,17 @@ def main() -> None:
             )
 
             print(f"[Upload] gold -> {gold_key}")
+
+            create_execution_metrics(
+                session,
+                gold_execution=gold_exec,
+                valid_count=valid_count,
+                rejected_count=rejected_count,
+                rejection_rate=rejection_rate,
+                duration_seconds=duration_seconds,
+                corrupt_count=corrupt_count,
+            )
+            print(f"[Metrics] persisted in execution_metrics")
 
             finish_execution(session, gold_exec, "SUCCESS", storage_path=gold_key)
             print(f"[Done] status=SUCCESS")
