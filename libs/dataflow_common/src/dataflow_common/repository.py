@@ -3,7 +3,7 @@ from uuid import UUID
 
 from sqlalchemy.orm import Session
 
-from dataflow_common.models import Dataset, Execution
+from dataflow_common.models import Dataset, Execution, ExecutionMetrics
 
 
 def _utcnow() -> datetime:
@@ -51,3 +51,25 @@ def finish_execution(
     if error_message:
         execution.error_message = error_message
     session.commit()
+
+
+def create_execution_metrics(
+    session: Session,
+    gold_execution: Execution,
+    valid_count: int,
+    rejected_count: int,
+    rejection_rate: float,
+    duration_seconds: float,
+    corrupt_count: int,
+) -> ExecutionMetrics:
+    metrics = ExecutionMetrics(
+        gold_execution_id=gold_execution.id,
+        valid_count=valid_count,
+        rejected_count=rejected_count,
+        rejection_rate=rejection_rate,
+        duration_seconds=duration_seconds,
+        corrupt_count=corrupt_count,
+    )
+    session.add(metrics)
+    session.flush()
+    return metrics
