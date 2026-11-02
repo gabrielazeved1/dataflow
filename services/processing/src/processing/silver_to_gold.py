@@ -25,9 +25,7 @@ from processing.database import SessionLocal
 from processing.spark import build_spark
 
 
-def main() -> None:
-    silver_execution_id = UUID(sys.argv[1])
-
+def run(silver_execution_id: UUID) -> UUID:
     with SessionLocal() as session:
         silver_exec = get_execution(session, silver_execution_id)
         if silver_exec is None:
@@ -158,12 +156,19 @@ def main() -> None:
 
             finish_execution(session, gold_exec, "SUCCESS", storage_path=gold_key)
             print(f"[Done] status=SUCCESS")
+            return gold_exec.id
         except Exception as exc:
             finish_execution(session, gold_exec, "FAILED", error_message=str(exc))
             print(f"[Error] {exc}")
             raise
         finally:
             spark.stop()
+
+
+def main() -> None:
+    silver_execution_id = UUID(sys.argv[1])
+    gold_id = run(silver_execution_id)
+    print(f"[Done] gold_id={gold_id}")
 
 
 if __name__ == "__main__":
