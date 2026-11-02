@@ -86,3 +86,18 @@ def bronze_execution(db):
 def bronze_execution_with_nulls(db):
     # segunda linha: produto null — vai pro rejected
     return _make_bronze(db, b"produto,quantidade,valor\ncaneta,2,1.50\n,5,3.00")
+
+
+@pytest.fixture
+def silver_execution(db, bronze_execution_with_nulls):
+    import sys
+    from unittest.mock import patch
+
+    from dataflow_common.models import Execution
+    from processing.bronze_to_silver import main as bronze_main
+
+    with patch.object(sys, "argv", ["processing", str(bronze_execution_with_nulls.id)]):
+        bronze_main()
+
+    db.expire_all()
+    return db.query(Execution).filter(Execution.layer == "SILVER").first()

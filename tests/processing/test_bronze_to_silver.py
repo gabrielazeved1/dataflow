@@ -43,3 +43,13 @@ def test_rejected_parquet_in_minio(db, bronze_execution_with_nulls, minio_client
 def test_unknown_execution_id_exits():
     with pytest.raises(SystemExit):
         _run("00000000-0000-0000-0000-000000000000")
+
+
+def test_idempotente_nao_duplica_silver(db, bronze_execution):
+    _run(bronze_execution.id)
+    _run(bronze_execution.id)
+
+    db.expire_all()
+    silvers = db.query(Execution).filter(Execution.layer == "SILVER").all()
+    assert len(silvers) == 1
+    assert silvers[0].status == "SUCCESS"
