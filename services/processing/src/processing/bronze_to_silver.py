@@ -9,6 +9,7 @@ from pyspark.sql import Column, DataFrame
 from pyspark.sql.functions import col
 from pyspark.sql.types import StringType, StructField, StructType
 
+from dataflow_common.models import Execution
 from dataflow_common.repository import (
     create_execution,
     finish_execution,
@@ -71,6 +72,19 @@ def main() -> None:
         print(f"         file_name={bronze_exec.file_name}")
         print(f"[Dataset] id={dataset.id} nome={dataset.nome} formato={dataset.formato}")
         print(f"          campos={[c['nome'] for c in dataset.schema['campos']]}")
+
+        existing = (
+            session.query(Execution)
+            .filter(
+                Execution.input_execution_id == bronze_exec.id,
+                Execution.layer == "SILVER",
+                Execution.status == "SUCCESS",
+            )
+            .first()
+        )
+        if existing is not None:
+            print(f"[Skip] Silver ja existe: {existing.id} status=SUCCESS")
+            return
 
         silver_exec = create_execution(
             session,
