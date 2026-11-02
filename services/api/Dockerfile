@@ -4,9 +4,11 @@ RUN pip install uv
 
 WORKDIR /app
 
-COPY pyproject.toml ./
-RUN uv sync --no-dev #instalar dependencias
+COPY pyproject.toml uv.lock ./
+COPY libs/dataflow_common ./libs/dataflow_common
+COPY services/api ./services/api
+COPY services/processing ./services/processing
 
-COPY src/ ./src/
+RUN uv sync --package dataflow-api --frozen --no-dev
 
-CMD ["uv", "run", "uvicorn", "api.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uv", "run", "--package", "dataflow-api", "uvicorn", "api.main:app", "--host", "0.0.0.0", "--port", "8000"]
