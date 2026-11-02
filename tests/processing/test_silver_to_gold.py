@@ -5,7 +5,7 @@ from unittest.mock import patch
 import pyarrow.parquet as pq
 import pytest
 
-from dataflow_common.models import Execution
+from dataflow_common.models import Execution, ExecutionMetrics
 from dataflow_common.storage import build_gold_path
 
 from processing.silver_to_gold import main
@@ -48,6 +48,23 @@ def test_metrics_sao_corretas(db, silver_execution, minio_client):
     assert row["rejection_rate"] == 0.5
     assert row["corrupt_count"] == 0
     assert row["duration_seconds"] > 0
+
+
+def test_metrics_persistidas_em_execution_metrics(db, silver_execution):
+    _run(silver_execution.id)
+
+    db.expire_all()
+    gold = db.query(Execution).filter(Execution.layer == "GOLD").first()
+    metrics = (
+        db.query(ExecutionMetrics)
+        .filter(ExecutionMetrics.gold_execution_id == gold.id)
+        .one()
+    )
+    assert metrics.valid_count == 1
+    assert metrics.rejected_count == 1
+    assert metrics.rejection_rate == 0.5
+    assert metrics.corrupt_count == 0
+    assert metrics.duration_seconds > 0
 
 
 def test_silver_not_success_exits(db, bronze_execution_with_nulls):

@@ -23,6 +23,12 @@ def create_dataset(data: DatasetCreate, db: Session = Depends(get_db)):
     return dataset
 
 
+# GET /datasets
+@router.get("/", response_model=list[DatasetResponse])
+def list_datasets(db: Session = Depends(get_db)):
+    return db.query(Dataset).order_by(Dataset.created_at.desc()).all()
+
+
 # GET /datasets/{dataset_id}
 @router.get("/{dataset_id}", response_model=DatasetResponse)
 def get_dataset(dataset_id: UUID, db: Session = Depends(get_db)):

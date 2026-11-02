@@ -66,3 +66,21 @@ def test_get_dataset_not_found(client):
     response = client.get("/datasets/00000000-0000-0000-0000-000000000000")
 
     assert response.status_code == 404
+
+
+def test_list_datasets_vazio(client):
+    response = client.get("/datasets/")
+
+    assert response.status_code == 200
+    assert response.json() == []
+
+
+def test_list_datasets_ordem_mais_recente_primeiro(client):
+    client.post("/datasets/", json={"nome": "primeiro", "formato": "csv", "schema": VENDAS_SCHEMA})
+    client.post("/datasets/", json={"nome": "segundo", "formato": "json", "schema": VENDAS_SCHEMA})
+
+    response = client.get("/datasets/")
+
+    assert response.status_code == 200
+    nomes = [d["nome"] for d in response.json()]
+    assert nomes == ["segundo", "primeiro"]
