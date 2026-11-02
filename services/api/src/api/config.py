@@ -11,6 +11,7 @@ class Settings(BaseSettings):
     minio_bucket: str = "dataflow"
     max_file_size_mb: int = 100
     execution_timeout_minutes: int = 30
+    redis_url: str = ""
 
 
 settings = Settings()

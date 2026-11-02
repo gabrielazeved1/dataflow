@@ -6,6 +6,7 @@ dependencies = [
     "pyspark==4.0.*",
     "pyarrow>=17.0",
     "pydantic-settings>=2.0",
+    "celery[redis]==5.5.*",
     "dataflow-common",
 ]
 

@@ -47,6 +47,16 @@ services:
       "
     env_file: .env
 
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
   api:
     build:
       context: .
@@ -55,6 +65,7 @@ services:
     environment:
       POSTGRES_DSN: postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
       MINIO_ENDPOINT: minio:9000
+      REDIS_URL: redis://redis:6379/0
     ports:
       - "8000:8000"
     depends_on:
@@ -62,10 +73,33 @@ services:
         condition: service_healthy
       minio-init:
         condition: service_completed_successfully
+      redis:
+        condition: service_healthy
 
     volumes:
       - ./services/api/src:/app/services/api/src
+      - ./libs/dataflow_common/src:/app/libs/dataflow_common/src
     command: uv run --package dataflow-api uvicorn api.main:app --host 0.0.0.0 --port 8000 --reload
+
+  worker:
+    build:
+      context: .
+      dockerfile: services/processing/Dockerfile
+    env_file: .env
+    environment:
+      POSTGRES_DSN: postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      MINIO_ENDPOINT: minio:9000
+      REDIS_URL: redis://redis:6379/0
+    depends_on:
+      postgres:
+        condition: service_healthy
+      minio-init:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./services/processing/src:/app/services/processing/src
+      - ./libs/dataflow_common/src:/app/libs/dataflow_common/src
 
 volumes:
   postgres_data:

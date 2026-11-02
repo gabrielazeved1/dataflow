@@ -49,9 +49,7 @@ def _split(df: DataFrame, dataset_schema: dict) -> tuple[DataFrame, DataFrame]:
     return valid_df, rejected_df
 
 
-def main() -> None:
-    bronze_execution_id = UUID(sys.argv[1])
-
+def run(bronze_execution_id: UUID) -> UUID:
     with SessionLocal() as session:
         bronze_exec = get_execution(session, bronze_execution_id)
         if bronze_exec is None:
@@ -84,7 +82,7 @@ def main() -> None:
         )
         if existing is not None:
             print(f"[Skip] Silver ja existe: {existing.id} status=SUCCESS")
-            return
+            return existing.id
 
         silver_exec = create_execution(
             session,
@@ -169,12 +167,19 @@ def main() -> None:
 
             finish_execution(session, silver_exec, "SUCCESS", storage_path=silver_key)
             print(f"[Done] status=SUCCESS")
+            return silver_exec.id
         except Exception as exc:
             finish_execution(session, silver_exec, "FAILED", error_message=str(exc))
             print(f"[Error] {exc}")
             raise
         finally:
             spark.stop()
+
+
+def main() -> None:
+    bronze_execution_id = UUID(sys.argv[1])
+    silver_id = run(bronze_execution_id)
+    print(f"[Done] silver_id={silver_id}")
 
 
 if __name__ == "__main__":

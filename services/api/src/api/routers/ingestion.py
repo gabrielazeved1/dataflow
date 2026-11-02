@@ -1,11 +1,14 @@
 import hashlib
 import json
+import time
 from datetime import datetime, timezone
+from typing import Literal
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, UploadFile, File
 from sqlalchemy.orm import Session
 
+from api.celery_client import celery_client
 from api.config import settings
 from api.database import get_db
 from dataflow_common.models import Dataset, Execution
@@ -14,9 +17,48 @@ from api.storage import StorageUnavailableError, upload_bronze
 
 router = APIRouter(prefix="/datasets", tags=["ingestion"])
 
+_SYNC_TIMEOUT_SECONDS = 300
+_SYNC_POLL_INTERVAL_SECONDS = 1
+
+
+def _wait_for_gold(db: Session, bronze_id: UUID, timeout: int) -> Execution:
+    """faz polling no postgres até a gold filha chegar em SUCCESS ou FAILED.
+    levanta timeouterror se não terminar dentro de `timeout` segundos."""
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        silver = (
+            db.query(Execution)
+            .filter(
+                Execution.input_execution_id == bronze_id,
+                Execution.layer == "SILVER",
+            )
+            .first()
+        )
+        if silver is not None:
+            gold = (
+                db.query(Execution)
+                .filter(
+                    Execution.input_execution_id == silver.id,
+                    Execution.layer == "GOLD",
+                    Execution.status.in_(["SUCCESS", "FAILED"]),
+                )
+                .first()
+            )
+            if gold is not None:
+                return gold
+        db.expire_all()
+        time.sleep(_SYNC_POLL_INTERVAL_SECONDS)
+    raise TimeoutError(f"Pipeline não terminou em {timeout}s")
+
 
 @router.post("/{dataset_id}/ingest", response_model=ExecutionResponse, status_code=202)
-def ingest(dataset_id: UUID, file: UploadFile = File(...), db: Session = Depends(get_db)):
+def ingest(
+    dataset_id: UUID,
+    response: Response,
+    file: UploadFile = File(...),
+    mode: Literal["sync", "async"] = Query("async"),
+    db: Session = Depends(get_db),
+):
     dataset = db.query(Dataset).filter(Dataset.id == dataset_id).first()
     if not dataset:
         raise HTTPException(status_code=404, detail="Dataset não encontrado")
@@ -55,6 +97,8 @@ def ingest(dataset_id: UUID, file: UploadFile = File(...), db: Session = Depends
         execution.file_size = len(content)
         execution.checksum = checksum
         execution.storage_path = storage_path
+        db.commit()
+        db.refresh(execution)
 
     except StorageUnavailableError as e:
         execution.status = "FAILED"
@@ -67,7 +111,18 @@ def ingest(dataset_id: UUID, file: UploadFile = File(...), db: Session = Depends
         execution.status = "FAILED"
         execution.finished_at = datetime.now(timezone.utc)
         execution.error_message = str(e)
+        db.commit()
+        db.refresh(execution)
+        return execution
 
-    db.commit()
-    db.refresh(execution)
-    return execution
+    celery_client.send_task("processing.ingest", args=[str(execution.id)])
+
+    if mode == "async":
+        return execution
+
+    try:
+        gold = _wait_for_gold(db, execution.id, _SYNC_TIMEOUT_SECONDS)
+    except TimeoutError as e:
+        raise HTTPException(status_code=504, detail=str(e))
+    response.status_code = 200
+    return gold
