@@ -6,6 +6,7 @@ from uuid import UUID
 from pyspark.sql import Row
 from pyspark.sql.functions import col
 
+from dataflow_common.models import Execution
 from dataflow_common.repository import (
     create_execution,
     create_execution_metrics,
@@ -54,6 +55,19 @@ def run(silver_execution_id: UUID) -> UUID:
         print(f"         started_at={silver_exec.started_at}")
         print(f"         finished_at={silver_exec.finished_at}")
         print(f"[Dataset] id={dataset.id} nome={dataset.nome}")
+
+        existing = (
+            session.query(Execution)
+            .filter(
+                Execution.input_execution_id == silver_exec.id,
+                Execution.layer == "GOLD",
+                Execution.status == "SUCCESS",
+            )
+            .first()
+        )
+        if existing is not None:
+            print(f"[Skip] Gold ja existe: {existing.id} status=SUCCESS")
+            return existing.id
 
         gold_exec = create_execution(
             session,

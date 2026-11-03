@@ -84,3 +84,13 @@ def test_silver_not_success_exits(db, bronze_execution_with_nulls):
 def test_unknown_execution_id_exits():
     with pytest.raises(SystemExit):
         _run("00000000-0000-0000-0000-000000000000")
+
+
+def test_idempotente_nao_duplica_gold(db, silver_execution):
+    _run(silver_execution.id)
+    _run(silver_execution.id)
+
+    db.expire_all()
+    golds = db.query(Execution).filter(Execution.layer == "GOLD").all()
+    assert len(golds) == 1
+    assert golds[0].status == "SUCCESS"

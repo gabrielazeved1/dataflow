@@ -10,6 +10,7 @@ class Settings(BaseSettings):
     minio_secret_key: str
     minio_bucket: str = "dataflow"
     redis_url: str
+    execution_timeout_minutes: int = 30
 
 
 settings = Settings()
