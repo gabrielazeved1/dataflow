@@ -57,6 +57,22 @@ services:
       timeout: 5s
       retries: 5
 
+  db-migrate:
+    build:
+      context: .
+      dockerfile: services/api/Dockerfile
+    env_file: .env
+    environment:
+      POSTGRES_DSN: postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./alembic:/app/alembic
+      - ./alembic.ini:/app/alembic.ini
+      - ./libs/dataflow_common/src:/app/libs/dataflow_common/src
+    command: uv run --package dataflow-api alembic upgrade head
+
   api:
     build:
       context: .
@@ -75,6 +91,8 @@ services:
         condition: service_completed_successfully
       redis:
         condition: service_healthy
+      db-migrate:
+        condition: service_completed_successfully
 
     volumes:
       - ./services/api/src:/app/services/api/src
@@ -97,6 +115,8 @@ services:
         condition: service_completed_successfully
       redis:
         condition: service_healthy
+      db-migrate:
+        condition: service_completed_successfully
     volumes:
       - ./services/processing/src:/app/services/processing/src
       - ./libs/dataflow_common/src:/app/libs/dataflow_common/src
