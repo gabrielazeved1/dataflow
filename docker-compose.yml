@@ -121,6 +121,25 @@ services:
       - ./services/processing/src:/app/services/processing/src
       - ./libs/dataflow_common/src:/app/libs/dataflow_common/src
 
+  beat:
+    build:
+      context: .
+      dockerfile: services/processing/Dockerfile
+    env_file: .env
+    environment:
+      POSTGRES_DSN: postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      MINIO_ENDPOINT: minio:9000
+      REDIS_URL: redis://redis:6379/0
+    depends_on:
+      redis:
+        condition: service_healthy
+      db-migrate:
+        condition: service_completed_successfully
+    volumes:
+      - ./services/processing/src:/app/services/processing/src
+      - ./libs/dataflow_common/src:/app/libs/dataflow_common/src
+    command: uv run --package dataflow-processing celery -A processing.celery_app beat --loglevel=info
+
 volumes:
   postgres_data:
   minio_data:
