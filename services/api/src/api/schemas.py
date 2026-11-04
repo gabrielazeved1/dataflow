@@ -102,3 +102,7 @@ class ExecutionMetricsResponse(BaseModel):
 
 class ExecutionDetailResponse(ExecutionResponse):
     metrics: ExecutionMetricsResponse | None = None
+
+
+class RejectedRowsResponse(BaseModel):
+    rows: list[dict[str, Any]]

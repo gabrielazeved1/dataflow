@@ -5,11 +5,12 @@ requires-python = ">=3.11"
 dependencies = []
 
 [tool.uv.workspace]
-members = ["services/api", "services/processing", "libs/dataflow_common"]
+members = ["services/api", "services/processing", "services/dashboard", "libs/dataflow_common"]
 
 [tool.uv.sources]
 dataflow-api = { workspace = true }
 dataflow-processing = { workspace = true }
+dataflow-dashboard = { workspace = true }
 
 [dependency-groups]
 dev = [
@@ -38,6 +39,7 @@ search_path = [
     "libs/dataflow_common/src",
     "services/api/src",
     "services/processing/src",
+    "services/dashboard/src",
 ]
 
 [tool.pytest.ini_options]

@@ -1,6 +1,8 @@
 from datetime import date, datetime, time, timedelta, timezone
+from io import BytesIO
 from uuid import UUID
 
+import pyarrow.parquet as pq
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
@@ -9,7 +11,9 @@ from api.schemas import (
     ExecutionDetailResponse,
     ExecutionListItem,
     ExecutionMetricsResponse,
+    RejectedRowsResponse,
 )
+from api.storage import StorageUnavailableError, download_silver_rejected
 from dataflow_common.models import Dataset, Execution, ExecutionMetrics
 
 router = APIRouter(prefix="/executions", tags=["executions"])
@@ -41,6 +45,34 @@ def list_executions(
         query = query.filter(Execution.created_at < to_dt)
 
     return query.order_by(Execution.created_at.desc()).all()
+
+
+# GET /executions/{silver_id}/rejected
+@router.get("/{silver_id}/rejected", response_model=RejectedRowsResponse)
+def get_rejected_preview(
+    silver_id: UUID,
+    limit: int = Query(20, ge=1, le=200),
+    db: Session = Depends(get_db),
+):
+    execution = db.query(Execution).filter(Execution.id == silver_id).first()
+    if execution is None:
+        raise HTTPException(status_code=404, detail="Execution não encontrada")
+    if execution.layer != "SILVER":
+        raise HTTPException(status_code=400, detail="Execution precisa ser SILVER")
+    if execution.status != "SUCCESS":
+        raise HTTPException(status_code=400, detail="Execution SILVER precisa estar SUCCESS")
+    if execution.storage_path is None:
+        raise HTTPException(status_code=400, detail="Execution sem storage_path")
+
+    dataset = db.query(Dataset).filter(Dataset.id == execution.dataset_id).first()
+    assert dataset is not None  # FK garante existência
+    try:
+        parquet_bytes = download_silver_rejected(dataset.nome, silver_id)
+    except StorageUnavailableError as exc:
+        raise HTTPException(status_code=503, detail=str(exc))
+
+    table = pq.read_table(BytesIO(parquet_bytes))
+    return {"rows": table.to_pylist()[:limit]}
 
 
 # GET /executions/{execution_id}
