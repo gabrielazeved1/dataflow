@@ -1,6 +1,9 @@
 import streamlit as st
 
+from dashboard.styles import apply_theme
+
 st.set_page_config(page_title="DataFlow Admin", layout="wide")
+apply_theme()
 
 st.title("DataFlow — Admin dashboard")
 

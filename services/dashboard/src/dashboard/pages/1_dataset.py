@@ -2,8 +2,10 @@ import pandas as pd
 import streamlit as st
 
 from dashboard.api_client import get_execution, list_datasets, list_executions
+from dashboard.styles import apply_theme
 
 st.set_page_config(page_title="Por dataset — DataFlow", layout="wide")
+apply_theme()
 
 st.title("Por dataset")
 

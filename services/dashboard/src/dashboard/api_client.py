@@ -14,7 +14,7 @@ def _get(path: str, params: dict[str, Any] | None = None) -> Any:
     return response.json()
 
 
-@st.cache_data(ttl=5)
+@st.cache_data(ttl=60)
 def list_datasets() -> list[dict]:
     return _get("/datasets/")
 
@@ -43,6 +43,6 @@ def get_execution(execution_id: str) -> dict:
     return _get(f"/executions/{execution_id}")
 
 
-@st.cache_data(ttl=5)
+@st.cache_data(ttl=30)
 def get_rejected_preview(silver_id: str, limit: int = 20) -> dict:
     return _get(f"/executions/{silver_id}/rejected", params={"limit": limit})

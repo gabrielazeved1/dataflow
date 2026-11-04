@@ -21,7 +21,6 @@ dev = [
     "httpx>=0.27",
     "dataflow-api",
     "dataflow-processing",
-    "dataflow-dashboard",
 ]
 
 [tool.black]

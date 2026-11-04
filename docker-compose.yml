@@ -154,6 +154,7 @@ services:
         condition: service_started
     volumes:
       - ./services/dashboard/src:/app/services/dashboard/src
+      - ./services/dashboard/.streamlit:/app/.streamlit
 
 volumes:
   postgres_data:

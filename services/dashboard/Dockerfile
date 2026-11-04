@@ -9,6 +9,7 @@ COPY libs/dataflow_common ./libs/dataflow_common
 COPY services/api ./services/api
 COPY services/processing ./services/processing
 COPY services/dashboard ./services/dashboard
+COPY services/dashboard/.streamlit ./.streamlit
 
 RUN uv sync --package dataflow-dashboard --frozen --no-dev
 

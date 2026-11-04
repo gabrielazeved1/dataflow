@@ -5,8 +5,10 @@ import streamlit as st
 from streamlit_autorefresh import st_autorefresh
 
 from dashboard.api_client import list_datasets, list_executions
+from dashboard.styles import apply_theme
 
 st.set_page_config(page_title="Overview — DataFlow", layout="wide")
+apply_theme()
 
 st_autorefresh(interval=10_000, key="overview_refresh")
 
