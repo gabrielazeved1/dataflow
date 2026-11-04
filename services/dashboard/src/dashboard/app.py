@@ -1,5 +1,17 @@
 import streamlit as st
 
 st.set_page_config(page_title="DataFlow Admin", layout="wide")
+
 st.title("DataFlow — Admin dashboard")
-st.write("Placeholder do Grupo 1. UI real entra no Grupo 3.")
+
+st.markdown(
+    """
+    Dashboard operacional da plataforma **DataFlow**. Use a barra lateral
+    para navegar entre as páginas:
+
+    - **Overview** — visão geral da plataforma (KPIs e execuções recentes).
+    - **Por dataset** — histórico de ingestões por dataset.
+    - **Detalhe** — tudo sobre uma execução, incluindo preview de linhas
+      rejeitadas.
+    """
+)
