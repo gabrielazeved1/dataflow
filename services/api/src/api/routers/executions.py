@@ -1,15 +1,20 @@
+import base64
+import binascii
+import json
 from datetime import date, datetime, time, timedelta, timezone
 from io import BytesIO
 from uuid import UUID
 
 import pyarrow.parquet as pq
 from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy import tuple_
 from sqlalchemy.orm import Session
 
 from api.database import get_db
 from api.schemas import (
     ExecutionDetailResponse,
     ExecutionListItem,
+    ExecutionListResponse,
     ExecutionMetricsResponse,
     RejectedRowsResponse,
 )
@@ -19,14 +24,29 @@ from dataflow_common.models import Dataset, Execution, ExecutionMetrics
 router = APIRouter(prefix="/executions", tags=["executions"])
 
 
+def _encode_cursor(created_at: datetime, execution_id: UUID) -> str:
+    payload = json.dumps({"created_at": created_at.isoformat(), "id": str(execution_id)})
+    return base64.urlsafe_b64encode(payload.encode()).decode()
+
+
+def _decode_cursor(cursor: str) -> tuple[datetime, UUID]:
+    try:
+        payload = json.loads(base64.urlsafe_b64decode(cursor.encode()).decode())
+        return datetime.fromisoformat(payload["created_at"]), UUID(payload["id"])
+    except (binascii.Error, ValueError, KeyError, UnicodeDecodeError, json.JSONDecodeError):
+        raise HTTPException(status_code=400, detail="cursor inválido")
+
+
 # GET /executions
-@router.get("/", response_model=list[ExecutionListItem])
+@router.get("/", response_model=ExecutionListResponse)
 def list_executions(
     dataset: str | None = Query(None, description="Nome do dataset"),
     status: str | None = Query(None, description="RUNNING | SUCCESS | FAILED"),
     layer: str | None = Query(None, description="BRONZE | SILVER | GOLD"),
     from_: date | None = Query(None, alias="from", description="Data inicial (YYYY-MM-DD, inclusivo)"),
     to: date | None = Query(None, description="Data final (YYYY-MM-DD, inclusivo)"),
+    limit: int = Query(50, ge=1, le=200),
+    after: str | None = Query(None, description="Cursor opaco pra próxima página"),
     db: Session = Depends(get_db),
 ):
     query = db.query(Execution)
@@ -44,7 +64,26 @@ def list_executions(
         to_dt = datetime.combine(to + timedelta(days=1), time.min, tzinfo=timezone.utc)
         query = query.filter(Execution.created_at < to_dt)
 
-    return query.order_by(Execution.created_at.desc()).all()
+    if after is not None:
+        cursor_created_at, cursor_id = _decode_cursor(after)
+        query = query.filter(
+            tuple_(Execution.created_at, Execution.id)
+            < tuple_(cursor_created_at, cursor_id)
+        )
+
+    rows = (
+        query.order_by(Execution.created_at.desc(), Execution.id.desc())
+        .limit(limit + 1)
+        .all()
+    )
+
+    has_next = len(rows) > limit
+    items = rows[:limit]
+    next_cursor = _encode_cursor(items[-1].created_at, items[-1].id) if has_next else None
+    return ExecutionListResponse(
+        items=[ExecutionListItem.model_validate(e) for e in items],
+        next_cursor=next_cursor,
+    )
 
 
 # GET /executions/{silver_id}/rejected
