@@ -57,13 +57,14 @@ def finish_execution(
     if error_message:
         values["error_message"] = error_message
 
-    result = session.execute(
+    updated_id = session.execute(
         update(Execution)
         .where(Execution.id == execution.id, Execution.status == "RUNNING")
         .values(**values)
+        .returning(Execution.id)
         .execution_options(synchronize_session=False)
-    )
-    if result.rowcount == 0:
+    ).scalar_one_or_none()
+    if updated_id is None:
         # descarta pendentes da transacao (ex.: metricas da Gold)
         session.rollback()
         raise ExecutionAlreadyFinishedError(
