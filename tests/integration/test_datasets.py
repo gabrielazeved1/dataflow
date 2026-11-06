@@ -77,7 +77,7 @@ def test_list_datasets_vazio(client):
 
 def test_list_datasets_ordem_mais_recente_primeiro(client):
     client.post("/datasets/", json={"nome": "primeiro", "formato": "csv", "schema": VENDAS_SCHEMA})
-    client.post("/datasets/", json={"nome": "segundo", "formato": "json", "schema": VENDAS_SCHEMA})
+    client.post("/datasets/", json={"nome": "segundo", "formato": "csv", "schema": VENDAS_SCHEMA})
 
     response = client.get("/datasets/")
 

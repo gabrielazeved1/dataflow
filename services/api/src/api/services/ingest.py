@@ -1,5 +1,4 @@
 import hashlib
-import json
 from datetime import datetime, timezone
 
 from sqlalchemy.orm import Session
@@ -39,10 +38,11 @@ def ingest_bytes(
         if len(content) > settings.max_file_size_mb * 1024 * 1024:
             raise ValueError(f"Arquivo excede {settings.max_file_size_mb}MB")
 
-        if dataset.formato == "csv":
-            content.decode("utf-8")
-        elif dataset.formato == "json":
-            json.loads(content)
+        # dataset legado com formato != csv: falha explícita em vez de
+        # gravar uma Bronze que o Spark não sabe ler.
+        if dataset.formato != "csv":
+            raise ValueError(f"formato '{dataset.formato}' não suportado")
+        content.decode("utf-8")
 
         checksum = hashlib.sha256(content).hexdigest()
         storage_path = upload_bronze(content, dataset.nome, execution.id, filename)

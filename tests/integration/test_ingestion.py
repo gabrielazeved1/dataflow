@@ -55,11 +55,19 @@ def test_ingest_file_exists_in_minio(client, minio_client):
     assert obj["Body"].read() == csv_content
 
 
-def test_ingest_invalid_json_fails(client):
-    dataset_id = _create_dataset(client, "eventos", formato="json")
+def test_create_dataset_json_rejected(client):
+    response = client.post(
+        "/datasets/", json={"nome": "eventos", "formato": "json", "schema": VENDAS_SCHEMA}
+    )
+
+    assert response.status_code == 422
+
+
+def test_ingest_invalid_utf8_fails(client):
+    dataset_id = _create_dataset(client, "vendas")
     response = client.post(
         f"/datasets/{dataset_id}/ingest",
-        files={"file": ("dados.json", b"isso nao e json { {", "application/json")},
+        files={"file": ("vendas.csv", b"\xff\xfe\x00binario", "text/csv")},
     )
 
     assert response.status_code == 202
@@ -68,6 +76,25 @@ def test_ingest_invalid_json_fails(client):
     assert data["error_message"] is not None
     assert data["checksum"] is None
     assert data["storage_path"] is None
+
+
+def test_ingest_legacy_json_dataset_fails(client, db):
+    from dataflow_common.models import Dataset
+
+    legacy = Dataset(nome="legado", formato="json", schema=VENDAS_SCHEMA)
+    db.add(legacy)
+    db.commit()
+
+    with patch("api.services.ingest.celery_client.send_task") as send_task:
+        response = client.post(
+            f"/datasets/{legacy.id}/ingest",
+            files={"file": ("dados.json", b'[{"a": 1}]', "application/json")},
+        )
+
+    data = response.json()
+    assert data["status"] == "FAILED"
+    assert "não suportado" in data["error_message"]
+    send_task.assert_not_called()
 
 
 def test_ingest_minio_unavailable_returns_503(client):

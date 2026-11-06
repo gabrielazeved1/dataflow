@@ -11,7 +11,7 @@ SCHEMA = {"campos": [{"nome": "produto", "tipo": "string", "obrigatorio": True}]
 @pytest.fixture
 def datasets(db):
     vendas = Dataset(nome="vendas", formato="csv", schema=SCHEMA)
-    estoque = Dataset(nome="estoque", formato="json", schema=SCHEMA)
+    estoque = Dataset(nome="estoque", formato="csv", schema=SCHEMA)
     db.add_all([vendas, estoque])
     db.commit()
     db.refresh(vendas)

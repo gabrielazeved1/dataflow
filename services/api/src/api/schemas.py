@@ -39,7 +39,9 @@ class DatasetCreate(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
     nome: str
-    formato: Literal["csv", "json"]
+    # só CSV por enquanto: o pipeline Spark lê apenas CSV. JSON Lines é V6
+    # (ver v5e.md, achado A1).
+    formato: Literal["csv"]
     # "schema" é reservado em Pydantic — usamos validation_alias para ler o JSON
     dataset_schema: DatasetSchema = Field(validation_alias="schema")
 
