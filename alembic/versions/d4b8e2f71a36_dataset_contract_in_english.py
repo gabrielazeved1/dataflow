@@ -29,7 +29,7 @@ def _rename_schema_keys(
         (
             f"'{new}', f->'{old}'"
             if old != required_key
-            # campo antigo sem a chave de obrigatoriedade: default do pydantic é true
+            # chave ausente: o default do pydantic é true
             else f"'{new}', COALESCE(f->'{old}', 'true'::jsonb)"
         )
         for old, new in keys.items()

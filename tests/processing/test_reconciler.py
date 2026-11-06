@@ -56,7 +56,7 @@ def test_bronze_without_silver_is_reconciled(db, dataset):
 
 
 def test_recent_bronze_waits(db, dataset):
-    # pode estar só na fila ainda
+    # pode estar so na fila
     _bronze(db, dataset, minutes_ago=2)
     assert _found(db) == set()
 
@@ -80,7 +80,7 @@ def test_running_or_success_silver_blocks(db, dataset):
 
 
 def test_silver_failed_by_timeout_is_reconciled(db, dataset):
-    # worker morreu, reaper marcou: vale tentar de novo
+    # worker morreu e o reaper marcou: vale tentar de novo
     b = _bronze(db, dataset)
     _silver(db, b, "FAILED", error_message="timeout")
     assert _found(db) == {b.id}

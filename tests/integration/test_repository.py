@@ -95,7 +95,7 @@ def test_finish_execution_does_not_overwrite_reaper_failed(db, sample_dataset):
     execution = repository.create_execution(
         db, dataset_id=sample_dataset.id, layer="SILVER"
     )
-    # simula o reaper marcando timeout enquanto o job ainda roda
+    # simula o reaper marcando timeout com o job rodando
     db.query(Execution).filter(Execution.id == execution.id).update(
         {"status": "FAILED", "error_message": "timeout"}
     )

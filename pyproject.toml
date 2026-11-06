@@ -35,7 +35,7 @@ line-length = 88
 select = ["E", "F", "I"]
 
 [tool.ruff.lint.per-file-ignores]
-# CSS embutido em string: URL de fonte e seletores longos não quebram
+# css embutido: url e seletores longos nao quebram
 "services/dashboard/src/dashboard/styles.py" = ["E501"]
 
 [tool.pyrefly]

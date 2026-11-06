@@ -10,7 +10,6 @@ from api.schemas import DatasetCreate, DatasetResponse
 router = APIRouter(prefix="/datasets", tags=["datasets"])
 
 
-# POST /datasets
 @router.post("/", response_model=DatasetResponse, status_code=201)
 def create_dataset(data: DatasetCreate, db: Session = Depends(get_db)):
     if db.query(Dataset).filter(Dataset.name == data.name).first():
@@ -23,19 +22,15 @@ def create_dataset(data: DatasetCreate, db: Session = Depends(get_db)):
     )
     db.add(dataset)
     db.commit()
-    db.refresh(
-        dataset
-    )  # atualiza o objeto com os valores gerados pelo banco (id, created_at)
+    db.refresh(dataset)
     return dataset
 
 
-# GET /datasets
 @router.get("/", response_model=list[DatasetResponse])
 def list_datasets(db: Session = Depends(get_db)):
     return db.query(Dataset).order_by(Dataset.created_at.desc()).all()
 
 
-# GET /datasets/{dataset_id}
 @router.get("/{dataset_id}", response_model=DatasetResponse)
 def get_dataset(dataset_id: UUID, db: Session = Depends(get_db)):
     dataset = db.query(Dataset).filter(Dataset.id == dataset_id).first()

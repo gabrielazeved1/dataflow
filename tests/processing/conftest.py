@@ -77,7 +77,7 @@ def bronze_execution(db):
 
 @pytest.fixture
 def bronze_execution_with_nulls(db):
-    # segunda linha: produto null — vai pro rejected
+    # segunda linha sem produto: vai pro rejected
     return _make_bronze(db, b"produto,quantidade,valor\ncaneta,2,1.50\n,5,3.00")
 
 

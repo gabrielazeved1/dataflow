@@ -45,7 +45,6 @@ def _decode_cursor(cursor: str) -> tuple[datetime, UUID]:
         raise HTTPException(status_code=400, detail="Invalid cursor")
 
 
-# GET /executions
 @router.get("/", response_model=ExecutionListResponse)
 def list_executions(
     dataset: str | None = Query(None, description="Nome do dataset"),
@@ -98,7 +97,6 @@ def list_executions(
     )
 
 
-# GET /executions/{silver_id}/rejected
 @router.get("/{silver_id}/rejected", response_model=RejectedRowsResponse)
 def get_rejected_preview(
     silver_id: UUID,
@@ -116,18 +114,17 @@ def get_rejected_preview(
         raise HTTPException(status_code=400, detail="Execution has no storage_path")
 
     dataset = db.query(Dataset).filter(Dataset.id == execution.dataset_id).first()
-    assert dataset is not None  # FK garante existência
+    assert dataset is not None  # a FK garante
     try:
         parquet_bytes = download_silver_rejected(dataset.name, silver_id)
     except StorageUnavailableError as exc:
         raise HTTPException(status_code=503, detail=str(exc))
 
     table = pq.read_table(BytesIO(parquet_bytes))
-    # slice antes de converter: evita materializar todas as linhas em dicts
+    # corta antes de converter pra dicts
     return {"rows": table.slice(0, limit).to_pylist()}
 
 
-# GET /executions/{execution_id}
 @router.get("/{execution_id}", response_model=ExecutionDetailResponse)
 def get_execution_detail(execution_id: UUID, db: Session = Depends(get_db)):
     execution = db.query(Execution).filter(Execution.id == execution_id).first()

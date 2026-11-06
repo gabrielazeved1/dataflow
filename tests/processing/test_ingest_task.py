@@ -9,8 +9,7 @@ from sqlalchemy.exc import OperationalError
 
 @pytest.fixture
 def celery_eager_fast(monkeypatch):
-    # roda a task no mesmo processo + zera delays de retry pra teste
-    # nao ficar dormindo 2s + 4s + 8s entre tentativas.
+    # task no mesmo processo e sem espera entre retries
     monkeypatch.setattr(celery_app.conf, "task_always_eager", True)
     monkeypatch.setattr(celery_app.conf, "task_eager_propagates", False)
     monkeypatch.setattr(tasks.ingest, "default_retry_delay", 0)
@@ -29,7 +28,7 @@ def test_ingest_retries_operational_error_until_success(
     bronze_side_effects = [
         OperationalError("conn lost", None, Exception("boom")),
         OperationalError("conn lost", None, Exception("boom")),
-        silver_id,  # 3a tentativa succeed
+        silver_id,  # terceira tentativa passa
     ]
 
     with (
@@ -57,14 +56,14 @@ def test_ingest_gives_up_after_max_retries(celery_eager_fast):
         result = tasks.ingest.apply(args=[str(bronze_id)])
 
     assert result.failed()
-    # max_retries=3 → 4 execucoes totais (1 original + 3 retries)
+    # 3 retries = 4 chamadas
     assert mock_bronze.call_count == 4
 
 
 def test_ingest_does_not_retry_permanent_error(celery_eager_fast):
     bronze_id = uuid4()
 
-    # ValueError nao esta em autoretry_for → nao retenta
+    # ValueError fora do autoretry_for: sem retry
     with patch.object(
         tasks,
         "_run_bronze_to_silver",

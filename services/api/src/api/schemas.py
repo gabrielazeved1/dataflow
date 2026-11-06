@@ -37,10 +37,9 @@ class DatasetCreate(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
     name: str
-    # só CSV por enquanto: o pipeline Spark lê apenas CSV. JSON Lines é V6
-    # (ver v5e.md, achado A1).
+    # so csv: o Spark nao le json
     format: Literal["csv"]
-    # "schema" é reservado em Pydantic — usamos validation_alias para ler o JSON
+    # "schema" é reservado no pydantic, dai o alias
     dataset_schema: DatasetSchema = Field(validation_alias="schema")
 
 
@@ -50,7 +49,7 @@ class DatasetResponse(BaseModel):
     id: UUID
     name: str
     format: str
-    # lê do atributo SQLAlchemy "schema" via validation_alias, serializa como "schema"
+    # le o atributo schema do model e devolve como "schema"
     dataset_schema: dict[str, Any] = Field(
         validation_alias="schema", serialization_alias="schema"
     )

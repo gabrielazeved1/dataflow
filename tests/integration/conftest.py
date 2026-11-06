@@ -28,9 +28,8 @@ def clean_tables():
 
 @pytest.fixture(autouse=True)
 def no_real_queue():
-    # Sem isso, todo teste de ingestão manda uma task de verdade pro Redis,
-    # e o worker do docker compose a consome contra o banco de dev.
-    # Testes que verificam o enfileiramento fazem o próprio patch por cima.
+    # sem isso cada ingestao manda task real pro worker do compose
+    # testes de enfileiramento fazem o proprio patch por cima
     with patch("api.services.ingest.celery_client.send_task"):
         yield
 

@@ -15,14 +15,8 @@ def ingest_bytes(
     filename: str,
     content: bytes,
 ) -> Execution:
-    """Cria uma Execution BRONZE pros bytes recebidos: valida tamanho/formato,
-    faz upload no MinIO, enfileira a task Celery de processamento.
-
-    Retorna a Execution com status SUCCESS ou FAILED. Em caso de falha de
-    storage (MinIO fora), repropaga StorageUnavailableError — cabe ao caller
-    decidir o HTTP status. Qualquer outra falha (validação, formato) grava
-    FAILED na Execution e retorna normalmente.
-    """
+    # grava a Bronze e enfileira o processamento
+    # MinIO fora repropaga StorageUnavailableError pro caller decidir o status http
     execution = Execution(
         dataset_id=dataset.id,
         layer="BRONZE",
@@ -38,8 +32,7 @@ def ingest_bytes(
         if len(content) > settings.max_file_size_mb * 1024 * 1024:
             raise ValueError(f"File exceeds {settings.max_file_size_mb}MB")
 
-        # dataset legado com formato != csv: falha explícita em vez de
-        # gravar uma Bronze que o Spark não sabe ler.
+        # dataset legado com format != csv
         if dataset.format != "csv":
             raise ValueError(f"Unsupported format '{dataset.format}'")
         content.decode("utf-8")

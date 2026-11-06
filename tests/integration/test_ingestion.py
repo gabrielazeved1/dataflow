@@ -138,7 +138,7 @@ def test_ingest_dataset_not_found(client):
     assert response.status_code == 404
 
 
-#  modo sync / async + Celery
+# ----- modo sync / async -----
 
 VALID_CSV = b"data,produto,quantidade,valor_unitario\n2026-10-15,caneta,2,2.50"
 
@@ -170,14 +170,8 @@ def _add_child(db, parent, layer: str, status: str, created_at=None):
 def _make_worker_mock(
     db, fail_at: str | None = None, failed_silver_first: bool = False
 ):
-    """Simula o worker: ao receber send_task, cria Silver (+ Gold) no banco.
-
-    fail_at=None     -> Silver SUCCESS, Gold SUCCESS (+ métricas)
-    fail_at="SILVER" -> Silver FAILED, sem Gold (como no pipeline real)
-    fail_at="GOLD"   -> Silver SUCCESS, Gold FAILED
-    failed_silver_first=True simula um retry: antes da Silver boa, uma
-    Silver FAILED mais antiga da primeira tentativa.
-    """
+    # simula o worker criando Silver e Gold no banco
+    # fail_at: SILVER (sem Gold) ou GOLD. failed_silver_first simula um retry
     from datetime import datetime, timedelta, timezone
 
     from dataflow_common.models import Execution, ExecutionMetrics
@@ -283,7 +277,7 @@ def test_ingest_sync_gold_failure(client, db):
 
 
 def test_ingest_sync_silver_failure_returns_silver(client, db):
-    # antes: esperava uma Gold que nunca vinha e devolvia 504 após 300s
+    # antes esperava uma Gold que nunca vinha: 504 apos 300s
     dataset_id = _create_dataset(client, "vendas")
     response = _post_sync(
         client, dataset_id, _make_worker_mock(db, fail_at="SILVER"), timeout=5
@@ -296,7 +290,7 @@ def test_ingest_sync_silver_failure_returns_silver(client, db):
 
 
 def test_ingest_sync_ignores_failed_silver_from_previous_attempt(client, db):
-    # antes: .first() sem ordenação pegava a Silver FAILED do 1º attempt
+    # antes o .first() pegava a Silver FAILED da primeira tentativa
     dataset_id = _create_dataset(client, "vendas")
     worker = _make_worker_mock(db, failed_silver_first=True)
     response = _post_sync(client, dataset_id, worker, timeout=5)
@@ -308,8 +302,7 @@ def test_ingest_sync_ignores_failed_silver_from_previous_attempt(client, db):
 
 
 def test_ingest_sync_waits_retry_window_before_accepting_failed(client, db):
-    # Silver acabou de falhar: pode haver retry vindo. Dentro da janela,
-    # o sync continua esperando (aqui, até estourar o timeout curto).
+    # dentro da janela de retry o sync continua esperando
     dataset_id = _create_dataset(client, "vendas")
     response = _post_sync(
         client, dataset_id, _make_worker_mock(db, fail_at="SILVER"), grace=90, timeout=1

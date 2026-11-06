@@ -41,7 +41,7 @@ def test_index_blocks_two_active_children(db, bronze):
 def test_index_allows_new_attempt_after_failed(db, bronze):
     _child(db, bronze, "FAILED")
     _child(db, bronze, "FAILED")
-    _child(db, bronze, "RUNNING")  # retry: não colide com as FAILED
+    _child(db, bronze, "RUNNING")  # retry: nao colide com as FAILED
 
 
 def test_start_child_creates_when_no_child(db, bronze):
@@ -62,7 +62,7 @@ def test_start_child_returns_existing_success(db, bronze):
 
 
 def test_start_child_with_running_child_raises_concurrency(db, bronze):
-    # outra task já está processando esta Bronze
+    # outra task ja processa esta Bronze
     _child(db, bronze, "RUNNING")
     with pytest.raises(ConcurrentExecutionError):
         start_child_execution(

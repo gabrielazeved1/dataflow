@@ -94,7 +94,7 @@ def test_csv_sample_respects_invalid_rate(client, dataset):
     assert response.status_code == 200
     rows = list(csv.DictReader(io.StringIO(response.text)))
     invalid = sum(1 for r in rows if not _row_valid(r, SCHEMA))
-    # tolerância estatística: 50% ± 15% em 200 linhas (~85-115)
+    # tolerancia: 50% +- 15% em 200 linhas
     assert 70 <= invalid <= 130
 
 

@@ -67,9 +67,7 @@ def run(silver_execution_id: UUID) -> UUID:
 
         print(f"[Gold] execution={gold_exec.id} status={gold_exec.status}")
 
-        # tudo depois de criar a filha RUNNING fica dentro do try: se falhar
-        # fora dele (download, boot da JVM), a filha fica RUNNING, o índice
-        # de idempotência bloqueia o retry e a task desiste sem processar.
+        # tudo apos criar a filha fica no try: filha presa em RUNNING bloqueia o retry
         spark = None
         try:
             valid_key = silver_exec.storage_path
@@ -171,7 +169,7 @@ def run(silver_execution_id: UUID) -> UUID:
             print("[Done] status=SUCCESS")
             return gold_exec.id
         except ExecutionAlreadyFinishedError:
-            # reaper já marcou FAILED; não há o que gravar
+            # o reaper ja marcou FAILED
             raise
         except Exception as exc:
             finish_execution(session, gold_exec, "FAILED", error_message=str(exc))

@@ -25,13 +25,8 @@ def _find_success_child(
 def start_child_execution(
     session: Session, *, dataset_id: UUID, parent_id: UUID, layer: str
 ) -> tuple[Execution, bool]:
-    """Cria a execução filha RUNNING, ou devolve a SUCCESS que já existe.
-
-    Retorna (execution, created). created=False significa "já processado,
-    pule". A checagem SELECT é só o caminho rápido; quem garante de fato
-    é o índice único parcial uq_execution_child_active: se duas tasks
-    passarem juntas pelo SELECT, a segunda toma IntegrityError no INSERT.
-    """
+    # created=False: ja existe filha SUCCESS, pule
+    # o SELECT é atalho; quem garante é o indice uq_execution_child_active
     existing = _find_success_child(session, parent_id, layer)
     if existing is not None:
         return existing, False
@@ -47,6 +42,6 @@ def start_child_execution(
         if existing is not None:
             return existing, False
         raise ConcurrentExecutionError(
-            f"{layer} de {parent_id} já está RUNNING em outra task"
+            f"{layer} de {parent_id} ja esta RUNNING em outra task"
         ) from None
     return child, True
