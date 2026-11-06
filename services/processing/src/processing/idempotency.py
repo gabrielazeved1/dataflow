@@ -26,7 +26,7 @@ def start_child_execution(
     session: Session, *, dataset_id: UUID, parent_id: UUID, layer: str
 ) -> tuple[Execution, bool]:
     # created=False: ja existe filha SUCCESS, pule
-    # o SELECT é atalho; quem garante é o indice uq_execution_child_active
+    # o SELECT é atalho->> quem garante é o indice uq_execution_child_active
     existing = _find_success_child(session, parent_id, layer)
     if existing is not None:
         return existing, False

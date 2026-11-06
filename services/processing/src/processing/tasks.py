@@ -64,13 +64,13 @@ def reap_stuck_executions() -> int:
 
 
 def find_bronzes_to_reconcile(session, now: datetime) -> list[UUID]:
-    # Bronze sem Silver: send_task perdido (redis fora ou api caiu)
-    # Bronze so com Silver FAILED por timeout: worker morreu no meio
+    # bronze sem silver: send_task perdido (redis fora ou api caiu)
+    # bronze so com silver FAILED por timeout: worker morreu no meio
     # erro de dado nao entra, repetir nao resolve
     blocking = aliased(Execution)
     attempt = aliased(Execution)
 
-    # Silver ativa ou FAILED por outro motivo bloqueia
+    # silver ativa ou failed por outro motivo bloqueia
     has_blocking_silver = exists().where(
         blocking.input_execution_id == Execution.id,
         blocking.layer == "SILVER",

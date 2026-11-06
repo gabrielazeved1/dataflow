@@ -37,7 +37,7 @@ class DatasetCreate(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
     name: str
-    # so csv: o Spark nao le json
+    # so csv: o Spark nao le json - fica para outras versoes adicionar json ou pdf
     format: Literal["csv"]
     # "schema" é reservado no pydantic, dai o alias
     dataset_schema: DatasetSchema = Field(validation_alias="schema")

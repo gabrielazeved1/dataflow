@@ -1,5 +1,5 @@
-# Execution de entrada nao processavel. fora do autoretry_for
-# so a CLI converte em SystemExit: dentro da task derrubaria o processo filho
+# execution de entrada nao processavel. fora do autoretry_for
+# so a cli converte em systemexit: dentro da task derrubaria o processo filho
 class PreconditionError(Exception):
     pass
 

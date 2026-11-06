@@ -15,8 +15,8 @@ def ingest_bytes(
     filename: str,
     content: bytes,
 ) -> Execution:
-    # grava a Bronze e enfileira o processamento
-    # MinIO fora repropaga StorageUnavailableError pro caller decidir o status http
+    # grava a bronze e enfileira o processamento
+    # minio fora repropaga StorageUnavailableError pro caller decidir o status http
     execution = Execution(
         dataset_id=dataset.id,
         layer="BRONZE",
