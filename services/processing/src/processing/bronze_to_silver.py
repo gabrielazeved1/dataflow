@@ -24,6 +24,7 @@ from dataflow_common.storage import (
 )
 
 from processing.config import settings
+from processing.errors import PreconditionError
 from processing.database import SessionLocal
 from processing.schema_mapper import build_struct_type
 from processing.spark import build_spark
@@ -53,17 +54,17 @@ def run(bronze_execution_id: UUID) -> UUID:
     with SessionLocal() as session:
         bronze_exec = get_execution(session, bronze_execution_id)
         if bronze_exec is None:
-            raise SystemExit(f"Execution {bronze_execution_id} nao encontrada")
+            raise PreconditionError(f"Execution {bronze_execution_id} nao encontrada")
         if bronze_exec.layer != "BRONZE":
-            raise SystemExit(
+            raise PreconditionError(
                 f"Execution {bronze_execution_id} e {bronze_exec.layer}, esperava BRONZE"
             )
         if bronze_exec.storage_path is None:
-            raise SystemExit(f"Execution {bronze_execution_id} sem storage_path")
+            raise PreconditionError(f"Execution {bronze_execution_id} sem storage_path")
 
         dataset = get_dataset(session, bronze_exec.dataset_id)
         if dataset is None:
-            raise SystemExit(f"Dataset {bronze_exec.dataset_id} nao encontrado")
+            raise PreconditionError(f"Dataset {bronze_exec.dataset_id} nao encontrado")
 
         print(f"[Bronze] execution={bronze_exec.id}")
         print(f"         storage_path={bronze_exec.storage_path}")
@@ -178,7 +179,10 @@ def run(bronze_execution_id: UUID) -> UUID:
 
 def main() -> None:
     bronze_execution_id = UUID(sys.argv[1])
-    silver_id = run(bronze_execution_id)
+    try:
+        silver_id = run(bronze_execution_id)
+    except PreconditionError as exc:
+        raise SystemExit(str(exc)) from exc
     print(f"[Done] silver_id={silver_id}")
 
 

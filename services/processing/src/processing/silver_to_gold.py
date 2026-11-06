@@ -22,6 +22,7 @@ from dataflow_common.storage import (
 )
 
 from processing.config import settings
+from processing.errors import PreconditionError
 from processing.database import SessionLocal
 from processing.spark import build_spark
 
@@ -30,25 +31,25 @@ def run(silver_execution_id: UUID) -> UUID:
     with SessionLocal() as session:
         silver_exec = get_execution(session, silver_execution_id)
         if silver_exec is None:
-            raise SystemExit(f"Execution {silver_execution_id} nao encontrada")
+            raise PreconditionError(f"Execution {silver_execution_id} nao encontrada")
         if silver_exec.layer != "SILVER":
-            raise SystemExit(
+            raise PreconditionError(
                 f"Execution {silver_execution_id} e {silver_exec.layer}, esperava SILVER"
             )
         if silver_exec.status != "SUCCESS":
-            raise SystemExit(
+            raise PreconditionError(
                 f"Execution {silver_execution_id} status={silver_exec.status}, esperava SUCCESS"
             )
         if silver_exec.storage_path is None:
-            raise SystemExit(f"Execution {silver_execution_id} sem storage_path")
+            raise PreconditionError(f"Execution {silver_execution_id} sem storage_path")
         if silver_exec.started_at is None or silver_exec.finished_at is None:
-            raise SystemExit(
+            raise PreconditionError(
                 f"Execution {silver_execution_id} SUCCESS sem started_at/finished_at"
             )
 
         dataset = get_dataset(session, silver_exec.dataset_id)
         if dataset is None:
-            raise SystemExit(f"Dataset {silver_exec.dataset_id} nao encontrado")
+            raise PreconditionError(f"Dataset {silver_exec.dataset_id} nao encontrado")
 
         print(f"[Silver] execution={silver_exec.id}")
         print(f"         storage_path={silver_exec.storage_path}")
@@ -181,7 +182,10 @@ def run(silver_execution_id: UUID) -> UUID:
 
 def main() -> None:
     silver_execution_id = UUID(sys.argv[1])
-    gold_id = run(silver_execution_id)
+    try:
+        gold_id = run(silver_execution_id)
+    except PreconditionError as exc:
+        raise SystemExit(str(exc)) from exc
     print(f"[Done] gold_id={gold_id}")
 
 

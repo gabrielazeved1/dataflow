@@ -53,3 +53,14 @@ def test_idempotente_nao_duplica_silver(db, bronze_execution):
     silvers = db.query(Execution).filter(Execution.layer == "SILVER").all()
     assert len(silvers) == 1
     assert silvers[0].status == "SUCCESS"
+
+
+def test_run_unknown_execution_raises_precondition_error():
+    # run() é usado pela task Celery: não pode levantar SystemExit
+    from uuid import UUID
+
+    from processing.bronze_to_silver import run
+    from processing.errors import PreconditionError
+
+    with pytest.raises(PreconditionError):
+        run(UUID("00000000-0000-0000-0000-000000000000"))

@@ -94,3 +94,19 @@ def test_idempotente_nao_duplica_gold(db, silver_execution):
     golds = db.query(Execution).filter(Execution.layer == "GOLD").all()
     assert len(golds) == 1
     assert golds[0].status == "SUCCESS"
+
+
+def test_run_silver_not_success_raises_precondition_error(db, bronze_execution_with_nulls):
+    from dataflow_common.repository import create_execution
+
+    from processing.errors import PreconditionError
+    from processing.silver_to_gold import run
+
+    silver = create_execution(
+        db,
+        dataset_id=bronze_execution_with_nulls.dataset_id,
+        layer="SILVER",
+        input_execution_id=bronze_execution_with_nulls.id,
+    )
+    with pytest.raises(PreconditionError):
+        run(silver.id)
