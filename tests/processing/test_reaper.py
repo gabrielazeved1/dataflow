@@ -24,7 +24,7 @@ def _make_running_execution(db, started_at: datetime) -> Execution:
     return execution
 
 
-def test_reaper_marca_execucao_antiga_como_failed(db):
+def test_reaper_marks_old_execution_failed(db):
     old_started = datetime.now(timezone.utc) - timedelta(hours=2)
     execution = _make_running_execution(db, started_at=old_started)
 
@@ -38,7 +38,7 @@ def test_reaper_marca_execucao_antiga_como_failed(db):
     assert execution.finished_at is not None
 
 
-def test_reaper_nao_toca_execucao_recente(db):
+def test_reaper_ignores_recent_execution(db):
     recent_started = datetime.now(timezone.utc) - timedelta(seconds=10)
     execution = _make_running_execution(db, started_at=recent_started)
 
@@ -51,7 +51,7 @@ def test_reaper_nao_toca_execucao_recente(db):
     assert execution.error_message is None
 
 
-def test_reaper_nao_toca_execucao_ja_finalizada(db):
+def test_reaper_ignores_finished_execution(db):
     old_started = datetime.now(timezone.utc) - timedelta(hours=2)
     dataset = Dataset(nome="reaper_test", formato="csv", schema=_SCHEMA)
     db.add(dataset)

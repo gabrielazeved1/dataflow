@@ -6,7 +6,7 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
-class CampoSchema(BaseModel):
+class FieldSchema(BaseModel):
     nome: str
     tipo: Literal["date", "string", "integer", "float"]
     obrigatorio: bool = True
@@ -14,7 +14,7 @@ class CampoSchema(BaseModel):
     max: float | None = None
 
     @model_validator(mode="after")
-    def min_max_apenas_numerico(self) -> "CampoSchema":
+    def check_min_max_numeric_only(self) -> "FieldSchema":
         if self.min is not None or self.max is not None:
             if self.tipo not in ("integer", "float"):
                 raise ValueError("min/max só são aplicáveis a campos integer ou float")
@@ -22,14 +22,14 @@ class CampoSchema(BaseModel):
 
 
 class DatasetSchema(BaseModel):
-    campos: list[CampoSchema] = Field(min_length=1)
+    campos: list[FieldSchema] = Field(min_length=1)
 
     @model_validator(mode="after")
-    def nomes_de_campos_unicos(self) -> "DatasetSchema":
-        nomes = [campo.nome for campo in self.campos]
-        duplicados = sorted(nome for nome, count in Counter(nomes).items() if count > 1)
-        if duplicados:
-            raise ValueError(f"nomes de campos duplicados: {duplicados}")
+    def check_unique_field_names(self) -> "DatasetSchema":
+        names = [field.nome for field in self.campos]
+        duplicates = sorted(name for name, count in Counter(names).items() if count > 1)
+        if duplicates:
+            raise ValueError(f"nomes de campos duplicados: {duplicates}")
         return self
 
 

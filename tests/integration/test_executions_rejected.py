@@ -45,12 +45,12 @@ def _upload_rejected_parquet(minio_client, dataset_name, execution_id, rows):
     minio_client.put_object(Bucket="dataflow", Key=key, Body=buf.getvalue())
 
 
-def test_rejected_execution_nao_existe(client):
+def test_rejected_unknown_execution(client):
     response = client.get("/executions/00000000-0000-0000-0000-000000000000/rejected")
     assert response.status_code == 404
 
 
-def test_rejected_execution_nao_silver(client, db, dataset):
+def test_rejected_non_silver_execution(client, db, dataset):
     bronze = _make_execution(
         db, dataset.id, "BRONZE", "SUCCESS", storage_path="bronze/x"
     )
@@ -68,7 +68,7 @@ def test_rejected_silver_failed(client, db, dataset):
     assert "SUCCESS" in response.json()["detail"]
 
 
-def test_rejected_silver_sem_storage_path(client, db, dataset):
+def test_rejected_silver_without_storage_path(client, db, dataset):
     silver = _make_execution(db, dataset.id, "SILVER", "SUCCESS")
     response = client.get(f"/executions/{silver.id}/rejected")
     assert response.status_code == 400

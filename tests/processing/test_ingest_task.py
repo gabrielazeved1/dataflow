@@ -19,7 +19,7 @@ def celery_eager_fast(monkeypatch):
     yield
 
 
-def test_ingest_retenta_em_operational_error_e_eventualmente_succeeds(
+def test_ingest_retries_operational_error_until_success(
     celery_eager_fast,
 ):
     bronze_id = uuid4()
@@ -46,7 +46,7 @@ def test_ingest_retenta_em_operational_error_e_eventualmente_succeeds(
     assert mock_gold.call_count == 1
 
 
-def test_ingest_desiste_apos_max_retries(celery_eager_fast):
+def test_ingest_gives_up_after_max_retries(celery_eager_fast):
     bronze_id = uuid4()
 
     with patch.object(
@@ -61,7 +61,7 @@ def test_ingest_desiste_apos_max_retries(celery_eager_fast):
     assert mock_bronze.call_count == 4
 
 
-def test_ingest_nao_retenta_em_erro_permanente(celery_eager_fast):
+def test_ingest_does_not_retry_permanent_error(celery_eager_fast):
     bronze_id = uuid4()
 
     # ValueError nao esta em autoretry_for → nao retenta
@@ -76,7 +76,7 @@ def test_ingest_nao_retenta_em_erro_permanente(celery_eager_fast):
     assert mock_bronze.call_count == 1
 
 
-def test_ingest_duplicado_desiste_sem_falhar(celery_eager_fast):
+def test_duplicate_ingest_gives_up_without_failing(celery_eager_fast):
     from processing.errors import ConcurrentExecutionError
 
     with (

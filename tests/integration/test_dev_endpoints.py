@@ -75,7 +75,7 @@ def test_dev_router_only_in_development(db, monkeypatch):
 # ----- /dev/csv/sample -----
 
 
-def test_csv_sample_gera_csv_todo_valido(client, dataset):
+def test_csv_sample_generates_all_valid_rows(client, dataset):
     response = client.post(
         f"/dev/csv/sample?dataset_id={dataset.id}&rows=100&invalid_rate=0.0"
     )
@@ -86,7 +86,7 @@ def test_csv_sample_gera_csv_todo_valido(client, dataset):
     assert all(_row_valid(r, SCHEMA) for r in rows)
 
 
-def test_csv_sample_respeita_invalid_rate(client, dataset):
+def test_csv_sample_respects_invalid_rate(client, dataset):
     response = client.post(
         f"/dev/csv/sample?dataset_id={dataset.id}&rows=200&invalid_rate=0.5"
     )
@@ -98,7 +98,7 @@ def test_csv_sample_respeita_invalid_rate(client, dataset):
     assert 70 <= invalid <= 130
 
 
-def test_csv_sample_dataset_inexistente(client):
+def test_csv_sample_unknown_dataset(client):
     response = client.post(
         "/dev/csv/sample?dataset_id=00000000-0000-0000-0000-000000000000"
     )
@@ -108,7 +108,7 @@ def test_csv_sample_dataset_inexistente(client):
 # ----- /dev/bulk-ingest -----
 
 
-def test_bulk_ingest_cria_n_execucoes(client, db, dataset):
+def test_bulk_ingest_creates_n_executions(client, db, dataset):
     with patch("api.services.ingest.celery_client.send_task"):
         response = client.post(
             f"/dev/bulk-ingest?dataset_id={dataset.id}&count=10&rows=50&invalid_rate=0.0"
@@ -127,14 +127,14 @@ def test_bulk_ingest_cria_n_execucoes(client, db, dataset):
     assert {e.file_name for e in bronzes} == {f"synthetic_{i}.csv" for i in range(10)}
 
 
-def test_bulk_ingest_respeita_limite_count(client, dataset):
+def test_bulk_ingest_enforces_count_limit(client, dataset):
     response = client.post(
         f"/dev/bulk-ingest?dataset_id={dataset.id}&count=51&rows=100&invalid_rate=0.0"
     )
     assert response.status_code == 422
 
 
-def test_bulk_ingest_dataset_inexistente(client):
+def test_bulk_ingest_unknown_dataset(client):
     response = client.post(
         "/dev/bulk-ingest?dataset_id=00000000-0000-0000-0000-000000000000"
     )

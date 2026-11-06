@@ -8,13 +8,13 @@ SCHEMA = {"campos": [{"nome": "produto", "tipo": "string", "obrigatorio": True}]
 
 @pytest.fixture
 def datasets(db):
-    vendas = Dataset(nome="vendas", formato="csv", schema=SCHEMA)
-    estoque = Dataset(nome="estoque", formato="csv", schema=SCHEMA)
-    db.add_all([vendas, estoque])
+    sales = Dataset(nome="vendas", formato="csv", schema=SCHEMA)
+    stock = Dataset(nome="estoque", formato="csv", schema=SCHEMA)
+    db.add_all([sales, stock])
     db.commit()
-    db.refresh(vendas)
-    db.refresh(estoque)
-    return vendas, estoque
+    db.refresh(sales)
+    db.refresh(stock)
+    return sales, stock
 
 
 def _make_execution(db, dataset_id, layer, status, created_at, **extra):
@@ -36,22 +36,22 @@ def _make_execution(db, dataset_id, layer, status, created_at, **extra):
 # ----- GET /executions -----
 
 
-def test_list_executions_vazio(client):
+def test_list_executions_empty(client):
     response = client.get("/executions/")
     assert response.status_code == 200
     assert response.json() == {"items": [], "next_cursor": None}
 
 
-def test_list_executions_sem_filtros_ordenacao_desc(client, db, datasets):
-    vendas, _ = datasets
+def test_list_executions_no_filters_sorted_desc(client, db, datasets):
+    sales, _ = datasets
     _make_execution(
-        db, vendas.id, "BRONZE", "SUCCESS", datetime(2026, 10, 15, tzinfo=timezone.utc)
+        db, sales.id, "BRONZE", "SUCCESS", datetime(2026, 10, 15, tzinfo=timezone.utc)
     )
     _make_execution(
-        db, vendas.id, "SILVER", "SUCCESS", datetime(2026, 11, 1, tzinfo=timezone.utc)
+        db, sales.id, "SILVER", "SUCCESS", datetime(2026, 11, 1, tzinfo=timezone.utc)
     )
     _make_execution(
-        db, vendas.id, "GOLD", "SUCCESS", datetime(2026, 11, 2, tzinfo=timezone.utc)
+        db, sales.id, "GOLD", "SUCCESS", datetime(2026, 11, 2, tzinfo=timezone.utc)
     )
 
     response = client.get("/executions/")
@@ -62,13 +62,13 @@ def test_list_executions_sem_filtros_ordenacao_desc(client, db, datasets):
     assert body["next_cursor"] is None
 
 
-def test_filtro_dataset_por_nome(client, db, datasets):
-    vendas, estoque = datasets
+def test_filter_by_dataset_name(client, db, datasets):
+    sales, stock = datasets
     _make_execution(
-        db, vendas.id, "BRONZE", "SUCCESS", datetime(2026, 11, 1, tzinfo=timezone.utc)
+        db, sales.id, "BRONZE", "SUCCESS", datetime(2026, 11, 1, tzinfo=timezone.utc)
     )
     _make_execution(
-        db, estoque.id, "BRONZE", "SUCCESS", datetime(2026, 11, 1, tzinfo=timezone.utc)
+        db, stock.id, "BRONZE", "SUCCESS", datetime(2026, 11, 1, tzinfo=timezone.utc)
     )
 
     response = client.get("/executions/?dataset=vendas")
@@ -76,16 +76,16 @@ def test_filtro_dataset_por_nome(client, db, datasets):
     assert response.status_code == 200
     rows = response.json()["items"]
     assert len(rows) == 1
-    assert rows[0]["dataset_id"] == str(vendas.id)
+    assert rows[0]["dataset_id"] == str(sales.id)
 
 
-def test_filtro_status(client, db, datasets):
-    vendas, _ = datasets
+def test_filter_by_status(client, db, datasets):
+    sales, _ = datasets
     _make_execution(
-        db, vendas.id, "BRONZE", "SUCCESS", datetime(2026, 11, 1, tzinfo=timezone.utc)
+        db, sales.id, "BRONZE", "SUCCESS", datetime(2026, 11, 1, tzinfo=timezone.utc)
     )
     _make_execution(
-        db, vendas.id, "BRONZE", "FAILED", datetime(2026, 11, 2, tzinfo=timezone.utc)
+        db, sales.id, "BRONZE", "FAILED", datetime(2026, 11, 2, tzinfo=timezone.utc)
     )
 
     response = client.get("/executions/?status=FAILED")
@@ -96,13 +96,13 @@ def test_filtro_status(client, db, datasets):
     assert rows[0]["status"] == "FAILED"
 
 
-def test_filtro_layer(client, db, datasets):
-    vendas, _ = datasets
+def test_filter_by_layer(client, db, datasets):
+    sales, _ = datasets
     _make_execution(
-        db, vendas.id, "BRONZE", "SUCCESS", datetime(2026, 11, 1, tzinfo=timezone.utc)
+        db, sales.id, "BRONZE", "SUCCESS", datetime(2026, 11, 1, tzinfo=timezone.utc)
     )
     _make_execution(
-        db, vendas.id, "SILVER", "SUCCESS", datetime(2026, 11, 2, tzinfo=timezone.utc)
+        db, sales.id, "SILVER", "SUCCESS", datetime(2026, 11, 2, tzinfo=timezone.utc)
     )
 
     response = client.get("/executions/?layer=SILVER")
@@ -113,19 +113,19 @@ def test_filtro_layer(client, db, datasets):
     assert rows[0]["layer"] == "SILVER"
 
 
-def test_filtros_combinados(client, db, datasets):
-    vendas, estoque = datasets
+def test_combined_filters(client, db, datasets):
+    sales, stock = datasets
     _make_execution(
-        db, vendas.id, "BRONZE", "SUCCESS", datetime(2026, 11, 1, tzinfo=timezone.utc)
+        db, sales.id, "BRONZE", "SUCCESS", datetime(2026, 11, 1, tzinfo=timezone.utc)
     )
     _make_execution(
-        db, vendas.id, "BRONZE", "FAILED", datetime(2026, 11, 1, tzinfo=timezone.utc)
+        db, sales.id, "BRONZE", "FAILED", datetime(2026, 11, 1, tzinfo=timezone.utc)
     )
     _make_execution(
-        db, vendas.id, "SILVER", "SUCCESS", datetime(2026, 11, 1, tzinfo=timezone.utc)
+        db, sales.id, "SILVER", "SUCCESS", datetime(2026, 11, 1, tzinfo=timezone.utc)
     )
     _make_execution(
-        db, estoque.id, "BRONZE", "SUCCESS", datetime(2026, 11, 1, tzinfo=timezone.utc)
+        db, stock.id, "BRONZE", "SUCCESS", datetime(2026, 11, 1, tzinfo=timezone.utc)
     )
 
     response = client.get("/executions/?dataset=vendas&status=SUCCESS&layer=BRONZE")
@@ -133,28 +133,28 @@ def test_filtros_combinados(client, db, datasets):
     assert response.status_code == 200
     rows = response.json()["items"]
     assert len(rows) == 1
-    assert rows[0]["dataset_id"] == str(vendas.id)
+    assert rows[0]["dataset_id"] == str(sales.id)
     assert rows[0]["status"] == "SUCCESS"
     assert rows[0]["layer"] == "BRONZE"
 
 
-def test_filtro_intervalo_datas_inclusivo(client, db, datasets):
-    vendas, _ = datasets
+def test_filter_date_range_inclusive(client, db, datasets):
+    sales, _ = datasets
     _make_execution(
-        db, vendas.id, "BRONZE", "SUCCESS", datetime(2026, 10, 14, tzinfo=timezone.utc)
+        db, sales.id, "BRONZE", "SUCCESS", datetime(2026, 10, 14, tzinfo=timezone.utc)
     )
     _make_execution(
-        db, vendas.id, "BRONZE", "SUCCESS", datetime(2026, 10, 15, tzinfo=timezone.utc)
+        db, sales.id, "BRONZE", "SUCCESS", datetime(2026, 10, 15, tzinfo=timezone.utc)
     )
     _make_execution(
         db,
-        vendas.id,
+        sales.id,
         "BRONZE",
         "SUCCESS",
         datetime(2026, 10, 20, 23, 59, tzinfo=timezone.utc),
     )
     _make_execution(
-        db, vendas.id, "BRONZE", "SUCCESS", datetime(2026, 10, 21, tzinfo=timezone.utc)
+        db, sales.id, "BRONZE", "SUCCESS", datetime(2026, 10, 21, tzinfo=timezone.utc)
     )
 
     response = client.get("/executions/?from=2026-10-15&to=2026-10-20")
@@ -164,10 +164,10 @@ def test_filtro_intervalo_datas_inclusivo(client, db, datasets):
     assert len(rows) == 2
 
 
-def test_dataset_inexistente_retorna_vazio(client, db, datasets):
-    vendas, _ = datasets
+def test_unknown_dataset_returns_empty(client, db, datasets):
+    sales, _ = datasets
     _make_execution(
-        db, vendas.id, "BRONZE", "SUCCESS", datetime(2026, 11, 1, tzinfo=timezone.utc)
+        db, sales.id, "BRONZE", "SUCCESS", datetime(2026, 11, 1, tzinfo=timezone.utc)
     )
 
     response = client.get("/executions/?dataset=inexistente")
@@ -180,9 +180,9 @@ def test_dataset_inexistente_retorna_vazio(client, db, datasets):
 
 
 def test_detail_bronze_metrics_null(client, db, datasets):
-    vendas, _ = datasets
+    sales, _ = datasets
     bronze = _make_execution(
-        db, vendas.id, "BRONZE", "SUCCESS", datetime(2026, 11, 1, tzinfo=timezone.utc)
+        db, sales.id, "BRONZE", "SUCCESS", datetime(2026, 11, 1, tzinfo=timezone.utc)
     )
 
     response = client.get(f"/executions/{bronze.id}")
@@ -192,9 +192,9 @@ def test_detail_bronze_metrics_null(client, db, datasets):
 
 
 def test_detail_silver_metrics_null(client, db, datasets):
-    vendas, _ = datasets
+    sales, _ = datasets
     silver = _make_execution(
-        db, vendas.id, "SILVER", "SUCCESS", datetime(2026, 11, 1, tzinfo=timezone.utc)
+        db, sales.id, "SILVER", "SUCCESS", datetime(2026, 11, 1, tzinfo=timezone.utc)
     )
 
     response = client.get(f"/executions/{silver.id}")
@@ -203,10 +203,10 @@ def test_detail_silver_metrics_null(client, db, datasets):
     assert response.json()["metrics"] is None
 
 
-def test_detail_gold_sem_metrics_persistidas(client, db, datasets):
-    vendas, _ = datasets
+def test_detail_gold_without_persisted_metrics(client, db, datasets):
+    sales, _ = datasets
     gold = _make_execution(
-        db, vendas.id, "GOLD", "SUCCESS", datetime(2026, 11, 1, tzinfo=timezone.utc)
+        db, sales.id, "GOLD", "SUCCESS", datetime(2026, 11, 1, tzinfo=timezone.utc)
     )
 
     response = client.get(f"/executions/{gold.id}")
@@ -215,10 +215,10 @@ def test_detail_gold_sem_metrics_persistidas(client, db, datasets):
     assert response.json()["metrics"] is None
 
 
-def test_detail_gold_com_metrics(client, db, datasets):
-    vendas, _ = datasets
+def test_detail_gold_with_metrics(client, db, datasets):
+    sales, _ = datasets
     gold = _make_execution(
-        db, vendas.id, "GOLD", "SUCCESS", datetime(2026, 11, 1, tzinfo=timezone.utc)
+        db, sales.id, "GOLD", "SUCCESS", datetime(2026, 11, 1, tzinfo=timezone.utc)
     )
     db.add(
         ExecutionMetrics(

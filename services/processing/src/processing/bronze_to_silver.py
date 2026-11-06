@@ -31,18 +31,20 @@ from processing.spark import build_spark
 
 def _build_is_valid(dataset_schema: dict) -> Column:
     conditions: list[Column] = [col("_corrupt_record").isNull()]
-    for campo in dataset_schema["campos"]:
-        nome = campo["nome"]
-        if campo["obrigatorio"]:
-            conditions.append(col(nome).isNotNull())
-        if campo.get("min") is not None:
-            conditions.append(col(nome) >= campo["min"])
-        if campo.get("max") is not None:
-            conditions.append(col(nome) <= campo["max"])
+    for field in dataset_schema["campos"]:
+        name = field["nome"]
+        if field["obrigatorio"]:
+            conditions.append(col(name).isNotNull())
+        if field.get("min") is not None:
+            conditions.append(col(name) >= field["min"])
+        if field.get("max") is not None:
+            conditions.append(col(name) <= field["max"])
     return reduce(and_, conditions)
 
 
-def _split(df: DataFrame, dataset_schema: dict) -> tuple[DataFrame, DataFrame]:
+def _split_valid_rejected(
+    df: DataFrame, dataset_schema: dict
+) -> tuple[DataFrame, DataFrame]:
     is_valid = _build_is_valid(dataset_schema)
     valid_df = df.filter(is_valid).drop("_corrupt_record")
     rejected_df = df.filter(~is_valid)
@@ -117,7 +119,7 @@ def run(bronze_execution_id: UUID) -> UUID:
 
             total = df.count()
 
-            valid_df, rejected_df = _split(df, dataset.schema)
+            valid_df, rejected_df = _split_valid_rejected(df, dataset.schema)
             valid_count = valid_df.count()
             rejected_count = rejected_df.count()
 

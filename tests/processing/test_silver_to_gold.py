@@ -30,7 +30,7 @@ def test_parquet_exists_in_minio(db, silver_execution, minio_client):
     minio_client.head_object(Bucket="dataflow", Key=gold.storage_path)
 
 
-def test_metrics_sao_corretas(db, silver_execution, minio_client):
+def test_metrics_are_correct(db, silver_execution, minio_client):
     _run(silver_execution.id)
 
     db.expire_all()
@@ -47,7 +47,7 @@ def test_metrics_sao_corretas(db, silver_execution, minio_client):
     assert row["duration_seconds"] > 0
 
 
-def test_metrics_persistidas_em_execution_metrics(db, silver_execution):
+def test_metrics_persisted_in_execution_metrics(db, silver_execution):
     _run(silver_execution.id)
 
     db.expire_all()
@@ -83,7 +83,7 @@ def test_unknown_execution_id_exits():
         _run("00000000-0000-0000-0000-000000000000")
 
 
-def test_idempotente_nao_duplica_gold(db, silver_execution):
+def test_idempotent_does_not_duplicate_gold(db, silver_execution):
     _run(silver_execution.id)
     _run(silver_execution.id)
 
@@ -110,7 +110,7 @@ def test_run_silver_not_success_raises_precondition_error(
         run(silver.id)
 
 
-def test_falha_no_download_marca_gold_failed(db, silver_execution):
+def test_download_failure_marks_gold_failed(db, silver_execution):
     from unittest.mock import patch
 
     from dataflow_common.models import Execution

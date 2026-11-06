@@ -36,7 +36,7 @@ def test_create_dataset_duplicate(client):
     assert response.status_code == 409
 
 
-def test_create_dataset_rejeita_campos_duplicados(client):
+def test_create_dataset_rejects_duplicate_fields(client):
     schema_invalido = {
         "campos": [
             {"nome": "id", "tipo": "integer", "obrigatorio": True},
@@ -74,14 +74,14 @@ def test_get_dataset_not_found(client):
     assert response.status_code == 404
 
 
-def test_list_datasets_vazio(client):
+def test_list_datasets_empty(client):
     response = client.get("/datasets/")
 
     assert response.status_code == 200
     assert response.json() == []
 
 
-def test_list_datasets_ordem_mais_recente_primeiro(client):
+def test_list_datasets_newest_first(client):
     client.post(
         "/datasets/",
         json={"nome": "primeiro", "formato": "csv", "schema": VENDAS_SCHEMA},
@@ -94,5 +94,5 @@ def test_list_datasets_ordem_mais_recente_primeiro(client):
     response = client.get("/datasets/")
 
     assert response.status_code == 200
-    nomes = [d["nome"] for d in response.json()]
-    assert nomes == ["segundo", "primeiro"]
+    names = [d["nome"] for d in response.json()]
+    assert names == ["segundo", "primeiro"]

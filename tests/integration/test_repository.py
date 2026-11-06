@@ -91,7 +91,7 @@ def test_finish_execution_failed(db, sample_dataset):
     assert execution.storage_path is None
 
 
-def test_finish_execution_nao_sobrescreve_failed_do_reaper(db, sample_dataset):
+def test_finish_execution_does_not_overwrite_reaper_failed(db, sample_dataset):
     execution = repository.create_execution(
         db, dataset_id=sample_dataset.id, layer="SILVER"
     )

@@ -231,7 +231,7 @@ def _post_sync(client, dataset_id, worker, grace=0, timeout=None):
             p.stop()
 
 
-def test_ingest_default_eh_async(client):
+def test_ingest_defaults_to_async(client):
     dataset_id = _create_dataset(client, "vendas")
     with patch("api.services.ingest.celery_client.send_task") as send_task:
         response = client.post(
@@ -249,7 +249,7 @@ def test_ingest_default_eh_async(client):
     assert kwargs["args"] == [data["id"]]
 
 
-def test_ingest_async_explicito(client):
+def test_ingest_explicit_async(client):
     dataset_id = _create_dataset(client, "vendas")
     with patch("api.services.ingest.celery_client.send_task") as send_task:
         response = client.post(
@@ -262,7 +262,7 @@ def test_ingest_async_explicito(client):
     send_task.assert_called_once()
 
 
-def test_ingest_sync_sucesso(client, db):
+def test_ingest_sync_success(client, db):
     dataset_id = _create_dataset(client, "vendas")
     response = _post_sync(client, dataset_id, _make_worker_mock(db))
 
@@ -272,7 +272,7 @@ def test_ingest_sync_sucesso(client, db):
     assert data["status"] == "SUCCESS"
 
 
-def test_ingest_sync_falha_na_gold(client, db):
+def test_ingest_sync_gold_failure(client, db):
     dataset_id = _create_dataset(client, "vendas")
     response = _post_sync(client, dataset_id, _make_worker_mock(db, fail_at="GOLD"))
 
@@ -282,7 +282,7 @@ def test_ingest_sync_falha_na_gold(client, db):
     assert data["status"] == "FAILED"
 
 
-def test_ingest_sync_falha_na_silver_devolve_silver(client, db):
+def test_ingest_sync_silver_failure_returns_silver(client, db):
     # antes: esperava uma Gold que nunca vinha e devolvia 504 após 300s
     dataset_id = _create_dataset(client, "vendas")
     response = _post_sync(
@@ -295,7 +295,7 @@ def test_ingest_sync_falha_na_silver_devolve_silver(client, db):
     assert data["status"] == "FAILED"
 
 
-def test_ingest_sync_ignora_silver_failed_de_tentativa_anterior(client, db):
+def test_ingest_sync_ignores_failed_silver_from_previous_attempt(client, db):
     # antes: .first() sem ordenação pegava a Silver FAILED do 1º attempt
     dataset_id = _create_dataset(client, "vendas")
     worker = _make_worker_mock(db, failed_silver_first=True)
@@ -307,7 +307,7 @@ def test_ingest_sync_ignora_silver_failed_de_tentativa_anterior(client, db):
     assert data["status"] == "SUCCESS"
 
 
-def test_ingest_sync_espera_janela_de_retry_antes_de_aceitar_failed(client, db):
+def test_ingest_sync_waits_retry_window_before_accepting_failed(client, db):
     # Silver acabou de falhar: pode haver retry vindo. Dentro da janela,
     # o sync continua esperando (aqui, até estourar o timeout curto).
     dataset_id = _create_dataset(client, "vendas")
@@ -332,7 +332,7 @@ def test_ingest_sync_timeout(client):
     assert response.status_code == 504
 
 
-def test_mode_invalido_retorna_422(client):
+def test_invalid_mode_returns_422(client):
     dataset_id = _create_dataset(client, "vendas")
     response = client.post(
         f"/datasets/{dataset_id}/ingest?mode=batata",
