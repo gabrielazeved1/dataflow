@@ -127,3 +127,19 @@ def test_download_failure_marks_gold_failed(db, silver_execution):
     db.expire_all()
     golds = db.query(Execution).filter(Execution.layer == "GOLD").all()
     assert [g.status for g in golds] == ["FAILED"]
+
+
+def test_run_records_trace_events_under_bronze_trace(db, silver_execution):
+    # eventos da gold ficam no mesmo trace da bronze
+    from dataflow_common.models import ExecutionEvent
+    from processing.silver_to_gold import run
+
+    run(silver_execution.id)
+
+    steps = [
+        e.step
+        for e in db.query(ExecutionEvent)
+        .filter(ExecutionEvent.trace_id == silver_execution.input_execution_id)
+        .order_by(ExecutionEvent.created_at)
+    ]
+    assert steps[-2:] == ["gold_started", "gold_stored"]

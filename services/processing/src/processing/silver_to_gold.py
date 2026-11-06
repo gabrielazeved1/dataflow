@@ -3,6 +3,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from uuid import UUID
 
+from dataflow_common.events import trace_event
 from dataflow_common.repository import (
     ExecutionAlreadyFinishedError,
     create_execution_metrics,
@@ -52,20 +53,24 @@ def run(silver_execution_id: UUID) -> UUID:
         if dataset is None:
             raise PreconditionError(f"Dataset {silver_exec.dataset_id} nao encontrado")
 
-        print(f"[Silver] execution={silver_exec.id}")
-        print(f"         storage_path={silver_exec.storage_path}")
-        print(f"         started_at={silver_exec.started_at}")
-        print(f"         finished_at={silver_exec.finished_at}")
-        print(f"[Dataset] id={dataset.id} name={dataset.name}")
+        bind = session.get_bind()
+        trace_id = silver_exec.input_execution_id or silver_exec.id
 
         gold_exec, created = start_child_execution(
             session, dataset_id=dataset.id, parent_id=silver_exec.id, layer="GOLD"
         )
         if not created:
-            print(f"[Skip] Gold ja existe: {gold_exec.id} status=SUCCESS")
+            trace_event(
+                bind, trace_id, "worker", "skipped", "gold ja existe", gold_exec.id
+            )
             return gold_exec.id
 
-        print(f"[Gold] execution={gold_exec.id} status={gold_exec.status}")
+        def trace(step: str, message: str, **details) -> None:
+            trace_event(
+                bind, trace_id, "worker", step, message, gold_exec.id, **details
+            )
+
+        trace("gold_started", "calculando metricas da silver")
 
         # tudo apos criar a filha fica no try: filha presa em RUNNING bloqueia o retry
         spark = None
@@ -93,11 +98,6 @@ def run(silver_execution_id: UUID) -> UUID:
             valid_local.write_bytes(valid_bytes)
             rejected_local.write_bytes(rejected_bytes)
 
-            print(f"[Download] valid    {len(valid_bytes)} bytes -> {valid_local}")
-            print(
-                f"[Download] rejected {len(rejected_bytes)} bytes -> {rejected_local}"
-            )
-
             spark = build_spark(f"silver_to_gold:{gold_exec.id}")
             valid_df = spark.read.parquet(str(valid_local))
             rejected_df = spark.read.parquet(str(rejected_local)).cache()
@@ -112,12 +112,6 @@ def run(silver_execution_id: UUID) -> UUID:
             duration_seconds = (
                 silver_exec.finished_at - silver_exec.started_at
             ).total_seconds()
-
-            print(
-                f"[Metrics] valid={valid_count} rejected={rejected_count} "
-                f"total={total} rejection_rate={rejection_rate:.4f} "
-                f"corrupt={corrupt_count} duration={duration_seconds:.2f}s"
-            )
 
             dt = datetime.now(timezone.utc).strftime("%Y-%m-%d")
 
@@ -152,8 +146,6 @@ def run(silver_execution_id: UUID) -> UUID:
                 secret_key=settings.minio_secret_key,
             )
 
-            print(f"[Upload] gold -> {gold_key}")
-
             create_execution_metrics(
                 session,
                 gold_execution=gold_exec,
@@ -163,17 +155,22 @@ def run(silver_execution_id: UUID) -> UUID:
                 duration_seconds=duration_seconds,
                 corrupt_count=corrupt_count,
             )
-            print("[Metrics] persisted in execution_metrics")
-
             finish_execution(session, gold_exec, "SUCCESS", storage_path=gold_key)
-            print("[Done] status=SUCCESS")
+            trace(
+                "gold_stored",
+                f"gold e metricas gravadas: {rejection_rate:.1%} rejeitadas",
+                path=gold_key,
+                rejection_rate=rejection_rate,
+                corrupt=corrupt_count,
+            )
             return gold_exec.id
         except ExecutionAlreadyFinishedError:
             # o reaper ja marcou FAILED
+            trace("failed", "reaper ja tinha marcado timeout")
             raise
         except Exception as exc:
             finish_execution(session, gold_exec, "FAILED", error_message=str(exc))
-            print(f"[Error] {exc}")
+            trace("failed", "erro na gold", error=str(exc))
             raise
         finally:
             if spark is not None:

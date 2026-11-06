@@ -75,3 +75,25 @@ def test_reaper_ignores_finished_execution(db):
     db.expire_all()
     db.refresh(execution)
     assert execution.status == "SUCCESS"
+
+
+def test_reaper_records_timeout_event_under_bronze_trace(db):
+    from dataflow_common.models import ExecutionEvent
+
+    old_started = datetime.now(timezone.utc) - timedelta(hours=2)
+    bronze = _make_running_execution(db, started_at=old_started)
+    silver = Execution(
+        dataset_id=bronze.dataset_id,
+        input_execution_id=bronze.id,
+        layer="SILVER",
+        status="RUNNING",
+        started_at=old_started,
+    )
+    db.add(silver)
+    db.commit()
+
+    reap_stuck_executions()
+
+    events = db.query(ExecutionEvent).filter(ExecutionEvent.step == "timeout").all()
+    assert {e.execution_id for e in events} == {bronze.id, silver.id}
+    assert {e.trace_id for e in events} == {bronze.id}

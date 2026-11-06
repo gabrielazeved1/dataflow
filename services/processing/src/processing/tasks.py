@@ -1,16 +1,18 @@
 from datetime import datetime, timedelta, timezone
 from uuid import UUID
 
+from dataflow_common.events import trace_event
 from dataflow_common.models import Execution
+from dataflow_common.repository import get_execution, get_trace_root
 from dataflow_common.storage import StorageUnavailableError
-from sqlalchemy import and_, exists, func, or_, select
+from sqlalchemy import and_, exists, func, or_, select, update
 from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import aliased
 
 from processing.bronze_to_silver import run as _run_bronze_to_silver
 from processing.celery_app import celery_app
 from processing.config import settings
-from processing.database import SessionLocal
+from processing.database import SessionLocal, engine
 from processing.errors import ConcurrentExecutionError
 from processing.silver_to_gold import run as _run_silver_to_gold
 
@@ -31,7 +33,7 @@ def ingest(bronze_execution_id: str) -> str | None:
         gold_id = _run_silver_to_gold(silver_id)
     except ConcurrentExecutionError as exc:
         # mensagem duplicada: a outra task faz o trabalho
-        print(f"[Ingest] desistindo: {exc}")
+        trace_event(engine, bronze_id, "worker", "duplicate_ignored", str(exc))
         return None
     return str(gold_id)
 
@@ -42,25 +44,31 @@ def reap_stuck_executions() -> int:
     now = datetime.now(timezone.utc)
     cutoff = now - timedelta(minutes=settings.execution_timeout_minutes)
     with SessionLocal() as session:
-        updated = (
-            session.query(Execution)
-            .filter(
-                Execution.status == "RUNNING",
-                Execution.started_at < cutoff,
+        # update condicional: job que terminou nesse meio tempo nao é tocado
+        reaped_ids = (
+            session.execute(
+                update(Execution)
+                .where(Execution.status == "RUNNING", Execution.started_at < cutoff)
+                .values(status="FAILED", finished_at=now, error_message="timeout")
+                .returning(Execution.id)
             )
-            .update(
-                {
-                    Execution.status: "FAILED",
-                    Execution.finished_at: now,
-                    Execution.error_message: "timeout",
-                },
-                synchronize_session=False,
-            )
+            .scalars()
+            .all()
         )
         session.commit()
-        if updated:
-            print(f"[Reaper] {updated} execution(s) em RUNNING timeout -> FAILED")
-        return updated
+        for execution_id in reaped_ids:
+            execution = get_execution(session, execution_id)
+            if execution is None:
+                continue
+            trace_event(
+                engine,
+                get_trace_root(session, execution),
+                "reaper",
+                "timeout",
+                f"{execution.layer.lower()} presa em RUNNING, marcada FAILED",
+                execution.id,
+            )
+        return len(reaped_ids)
 
 
 def find_bronzes_to_reconcile(session, now: datetime) -> list[UUID]:
@@ -116,6 +124,5 @@ def reconcile_bronzes() -> int:
         bronze_ids = find_bronzes_to_reconcile(session, datetime.now(timezone.utc))
     for bronze_id in bronze_ids:
         ingest.delay(str(bronze_id))
-    if bronze_ids:
-        print(f"[Reconciler] {len(bronze_ids)} Bronze(s) reenfileirada(s)")
+        trace_event(engine, bronze_id, "reconciler", "requeued", "bronze reenfileirada")
     return len(bronze_ids)
