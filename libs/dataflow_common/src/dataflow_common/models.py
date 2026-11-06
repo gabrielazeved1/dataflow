@@ -100,3 +100,27 @@ class ExecutionMetrics(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=_utcnow
     )
+
+
+# passo a passo de uma ingestao, da api ate a gold
+# trace_id é a bronze, raiz da cadeia: um grep por ele mostra o caminho todo
+class ExecutionEvent(Base):
+    __tablename__ = "execution_event"
+    __table_args__ = (Index("ix_execution_event_trace", "trace_id", "created_at"),)
+
+    id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    trace_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("execution.id")
+    )
+    execution_id: Mapped[UUID | None] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("execution.id")
+    )
+    service: Mapped[str] = mapped_column(String)
+    step: Mapped[str] = mapped_column(String)
+    message: Mapped[str] = mapped_column(Text)
+    details: Mapped[dict | None] = mapped_column(JSONB)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow
+    )
