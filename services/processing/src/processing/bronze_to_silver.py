@@ -9,9 +9,7 @@ from pyspark.sql import Column, DataFrame
 from pyspark.sql.functions import col
 from pyspark.sql.types import StringType, StructField, StructType
 
-from dataflow_common.models import Execution
 from dataflow_common.repository import (
-    create_execution,
     ExecutionAlreadyFinishedError,
     finish_execution,
     get_dataset,
@@ -26,6 +24,7 @@ from dataflow_common.storage import (
 
 from processing.config import settings
 from processing.errors import PreconditionError
+from processing.idempotency import start_child_execution
 from processing.database import SessionLocal
 from processing.schema_mapper import build_struct_type
 from processing.spark import build_spark
@@ -73,25 +72,12 @@ def run(bronze_execution_id: UUID) -> UUID:
         print(f"[Dataset] id={dataset.id} nome={dataset.nome} formato={dataset.formato}")
         print(f"          campos={[c['nome'] for c in dataset.schema['campos']]}")
 
-        existing = (
-            session.query(Execution)
-            .filter(
-                Execution.input_execution_id == bronze_exec.id,
-                Execution.layer == "SILVER",
-                Execution.status == "SUCCESS",
-            )
-            .first()
+        silver_exec, created = start_child_execution(
+            session, dataset_id=dataset.id, parent_id=bronze_exec.id, layer="SILVER"
         )
-        if existing is not None:
-            print(f"[Skip] Silver ja existe: {existing.id} status=SUCCESS")
-            return existing.id
-
-        silver_exec = create_execution(
-            session,
-            dataset_id=dataset.id,
-            layer="SILVER",
-            input_execution_id=bronze_exec.id,
-        )
+        if not created:
+            print(f"[Skip] Silver ja existe: {silver_exec.id} status=SUCCESS")
+            return silver_exec.id
 
         print(f"[Silver] execution={silver_exec.id} status={silver_exec.status}")
 

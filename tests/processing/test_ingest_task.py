@@ -71,3 +71,20 @@ def test_ingest_nao_retenta_em_erro_permanente(celery_eager_fast):
 
     assert result.failed()
     assert mock_bronze.call_count == 1
+
+
+def test_ingest_duplicado_desiste_sem_falhar(celery_eager_fast):
+    from processing.errors import ConcurrentExecutionError
+
+    with (
+        patch.object(
+            tasks, "_run_bronze_to_silver", side_effect=ConcurrentExecutionError("dup")
+        ) as mock_bronze,
+        patch.object(tasks, "_run_silver_to_gold") as mock_gold,
+    ):
+        result = tasks.ingest.apply(args=[str(uuid4())])
+
+    assert result.successful()
+    assert result.result is None
+    assert mock_bronze.call_count == 1  # sem retry
+    mock_gold.assert_not_called()

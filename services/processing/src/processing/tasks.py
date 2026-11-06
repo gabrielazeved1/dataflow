@@ -8,6 +8,7 @@ from sqlalchemy.exc import OperationalError
 from processing.bronze_to_silver import run as _run_bronze_to_silver
 from processing.celery_app import celery_app
 from processing.config import settings
+from processing.errors import ConcurrentExecutionError
 from processing.database import SessionLocal
 from processing.silver_to_gold import run as _run_silver_to_gold
 
@@ -21,10 +22,15 @@ from processing.silver_to_gold import run as _run_silver_to_gold
     default_retry_delay=2,
     max_retries=3,  # 3 retries = 4 execucoes totais
 )
-def ingest(bronze_execution_id: str) -> str:
+def ingest(bronze_execution_id: str) -> str | None:
     bronze_id = UUID(bronze_execution_id)
-    silver_id = _run_bronze_to_silver(bronze_id)
-    gold_id = _run_silver_to_gold(silver_id)
+    try:
+        silver_id = _run_bronze_to_silver(bronze_id)
+        gold_id = _run_silver_to_gold(silver_id)
+    except ConcurrentExecutionError as exc:
+        # mensagem duplicada pra mesma Bronze: a outra task faz o trabalho
+        print(f"[Ingest] desistindo: {exc}")
+        return None
     return str(gold_id)
 
 

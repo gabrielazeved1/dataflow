@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime, timezone
 from uuid import UUID
 
-from sqlalchemy import BigInteger, DateTime, Float, ForeignKey, String, Text
+from sqlalchemy import BigInteger, DateTime, Float, ForeignKey, Index, String, Text, text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
@@ -28,6 +28,19 @@ class Dataset(Base):
 
 class Execution(Base):
     __tablename__ = "execution"
+    # Idempotência garantida pelo banco: no máximo uma filha ativa
+    # (RUNNING/SUCCESS) por (pai, camada). Tentativas FAILED ficam fora do
+    # índice, então retry cria tentativa nova normalmente. Bronze tem
+    # input_execution_id NULL, e NULLs não colidem em índice único.
+    __table_args__ = (
+        Index(
+            "uq_execution_child_active",
+            "input_execution_id",
+            "layer",
+            unique=True,
+            postgresql_where=text("status IN ('RUNNING', 'SUCCESS')"),
+        ),
+    )
 
     id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
 

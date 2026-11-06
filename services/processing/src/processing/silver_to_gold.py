@@ -6,9 +6,7 @@ from uuid import UUID
 from pyspark.sql import Row
 from pyspark.sql.functions import col
 
-from dataflow_common.models import Execution
 from dataflow_common.repository import (
-    create_execution,
     create_execution_metrics,
     ExecutionAlreadyFinishedError,
     finish_execution,
@@ -24,6 +22,7 @@ from dataflow_common.storage import (
 
 from processing.config import settings
 from processing.errors import PreconditionError
+from processing.idempotency import start_child_execution
 from processing.database import SessionLocal
 from processing.spark import build_spark
 
@@ -58,25 +57,12 @@ def run(silver_execution_id: UUID) -> UUID:
         print(f"         finished_at={silver_exec.finished_at}")
         print(f"[Dataset] id={dataset.id} nome={dataset.nome}")
 
-        existing = (
-            session.query(Execution)
-            .filter(
-                Execution.input_execution_id == silver_exec.id,
-                Execution.layer == "GOLD",
-                Execution.status == "SUCCESS",
-            )
-            .first()
+        gold_exec, created = start_child_execution(
+            session, dataset_id=dataset.id, parent_id=silver_exec.id, layer="GOLD"
         )
-        if existing is not None:
-            print(f"[Skip] Gold ja existe: {existing.id} status=SUCCESS")
-            return existing.id
-
-        gold_exec = create_execution(
-            session,
-            dataset_id=dataset.id,
-            layer="GOLD",
-            input_execution_id=silver_exec.id,
-        )
+        if not created:
+            print(f"[Skip] Gold ja existe: {gold_exec.id} status=SUCCESS")
+            return gold_exec.id
 
         print(f"[Gold] execution={gold_exec.id} status={gold_exec.status}")
 
