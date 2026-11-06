@@ -46,3 +46,13 @@ def get_execution(execution_id: str) -> dict:
 @st.cache_data(ttl=30)
 def get_rejected_preview(silver_id: str, limit: int = 20) -> dict:
     return _get(f"/executions/{silver_id}/rejected", params={"limit": limit})
+
+
+@st.cache_data(ttl=1)
+def list_recent_bronzes(limit: int = 50) -> list[dict]:
+    return _get("/executions/", params={"layer": "BRONZE", "limit": limit})["items"]
+
+
+@st.cache_data(ttl=1)
+def get_trace(execution_id: str) -> dict:
+    return _get(f"/traces/{execution_id}")
