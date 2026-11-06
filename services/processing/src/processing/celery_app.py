@@ -18,5 +18,9 @@ celery_app.conf.update(
             "task": "processing.reap_stuck_executions",
             "schedule": 60.0,
         },
+        "reconcile-bronzes": {
+            "task": "processing.reconcile_bronzes",
+            "schedule": 300.0,
+        },
     },
 )

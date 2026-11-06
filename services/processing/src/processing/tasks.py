@@ -3,7 +3,9 @@ from uuid import UUID
 
 from dataflow_common.models import Execution
 from dataflow_common.storage import StorageUnavailableError
+from sqlalchemy import and_, exists, func, or_, select
 from sqlalchemy.exc import OperationalError
+from sqlalchemy.orm import aliased
 
 from processing.bronze_to_silver import run as _run_bronze_to_silver
 from processing.celery_app import celery_app
@@ -60,3 +62,66 @@ def reap_stuck_executions() -> int:
         if updated:
             print(f"[Reaper] {updated} execution(s) em RUNNING timeout -> FAILED")
         return updated
+
+
+def find_bronzes_to_reconcile(session, now: datetime) -> list[UUID]:
+    """Bronzes SUCCESS que deveriam ter virado Silver e não viraram.
+
+    Dois casos:
+    1. nenhuma Silver filha: o send_task da API se perdeu (Redis fora,
+       API caiu entre o commit e o enfileiramento);
+    2. todas as Silvers filhas FAILED por "timeout": o worker morreu no
+       meio e o reaper marcou. Limitado a reconcile_max_attempts pra não
+       entrar em loop com uma Bronze que sempre derruba o worker.
+
+    Silver FAILED por qualquer outro motivo (erro de dado, retry esgotado)
+    não entra: repetir não resolve.
+    """
+    blocking = aliased(Execution)
+    attempt = aliased(Execution)
+
+    # existe Silver ativa, ou Silver que falhou por motivo != timeout?
+    has_blocking_silver = exists().where(
+        blocking.input_execution_id == Execution.id,
+        blocking.layer == "SILVER",
+        or_(
+            blocking.status.in_(["RUNNING", "SUCCESS"]),
+            and_(
+                blocking.status == "FAILED",
+                or_(blocking.error_message.is_(None), blocking.error_message != "timeout"),
+            ),
+        ),
+    )
+    attempts = (
+        select(func.count())
+        .where(attempt.input_execution_id == Execution.id, attempt.layer == "SILVER")
+        .scalar_subquery()
+    )
+
+    rows = (
+        session.query(Execution.id)
+        .filter(
+            Execution.layer == "BRONZE",
+            Execution.status == "SUCCESS",
+            Execution.finished_at < now - timedelta(minutes=settings.reconcile_after_minutes),
+            Execution.finished_at > now - timedelta(hours=settings.reconcile_max_age_hours),
+            ~has_blocking_silver,
+            attempts < settings.reconcile_max_attempts,
+        )
+        .all()
+    )
+    return [row.id for row in rows]
+
+
+@celery_app.task(name="processing.reconcile_bronzes")
+def reconcile_bronzes() -> int:
+    # A tabela execution funciona como outbox: Bronze SUCCESS sem Silver é
+    # uma tarefa que deveria estar na fila. Reenfileirar é seguro porque
+    # o pipeline é idempotente (índice uq_execution_child_active).
+    with SessionLocal() as session:
+        bronze_ids = find_bronzes_to_reconcile(session, datetime.now(timezone.utc))
+    for bronze_id in bronze_ids:
+        ingest.delay(str(bronze_id))
+    if bronze_ids:
+        print(f"[Reconciler] {len(bronze_ids)} Bronze(s) reenfileirada(s)")
+    return len(bronze_ids)
