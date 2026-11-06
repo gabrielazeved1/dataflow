@@ -10,6 +10,7 @@ from dataflow_common.models import Execution
 from dataflow_common.repository import (
     create_execution,
     create_execution_metrics,
+    ExecutionAlreadyFinishedError,
     finish_execution,
     get_dataset,
     get_execution,
@@ -172,6 +173,9 @@ def run(silver_execution_id: UUID) -> UUID:
             finish_execution(session, gold_exec, "SUCCESS", storage_path=gold_key)
             print(f"[Done] status=SUCCESS")
             return gold_exec.id
+        except ExecutionAlreadyFinishedError:
+            # reaper já marcou FAILED; não há o que gravar
+            raise
         except Exception as exc:
             finish_execution(session, gold_exec, "FAILED", error_message=str(exc))
             print(f"[Error] {exc}")

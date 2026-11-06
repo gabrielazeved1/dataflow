@@ -80,3 +80,25 @@ def test_finish_execution_failed(db, sample_dataset):
     assert execution.status == "FAILED"
     assert execution.error_message == "boom"
     assert execution.storage_path is None
+
+
+def test_finish_execution_nao_sobrescreve_failed_do_reaper(db, sample_dataset):
+    execution = repository.create_execution(
+        db, dataset_id=sample_dataset.id, layer="SILVER"
+    )
+    # simula o reaper marcando timeout enquanto o job ainda roda
+    db.query(Execution).filter(Execution.id == execution.id).update(
+        {"status": "FAILED", "error_message": "timeout"}
+    )
+    db.commit()
+
+    with pytest.raises(repository.ExecutionAlreadyFinishedError):
+        repository.finish_execution(
+            db, execution, status="SUCCESS", storage_path="silver/x.parquet"
+        )
+
+    db.expire_all()
+    db.refresh(execution)
+    assert execution.status == "FAILED"
+    assert execution.error_message == "timeout"
+    assert execution.storage_path is None

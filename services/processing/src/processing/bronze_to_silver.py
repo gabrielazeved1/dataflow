@@ -12,6 +12,7 @@ from pyspark.sql.types import StringType, StructField, StructType
 from dataflow_common.models import Execution
 from dataflow_common.repository import (
     create_execution,
+    ExecutionAlreadyFinishedError,
     finish_execution,
     get_dataset,
     get_execution,
@@ -169,6 +170,9 @@ def run(bronze_execution_id: UUID) -> UUID:
             finish_execution(session, silver_exec, "SUCCESS", storage_path=silver_key)
             print(f"[Done] status=SUCCESS")
             return silver_exec.id
+        except ExecutionAlreadyFinishedError:
+            # reaper já marcou FAILED; não há o que gravar
+            raise
         except Exception as exc:
             finish_execution(session, silver_exec, "FAILED", error_message=str(exc))
             print(f"[Error] {exc}")
