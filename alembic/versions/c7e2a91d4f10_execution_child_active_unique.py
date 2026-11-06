@@ -19,8 +19,8 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    # SQL cru com IF NOT EXISTS: a suite de testes recria o schema via
-    # create_all() no mesmo banco, que ja cria esse indice a partir do model.
+    # IF NOT EXISTS: bancos de dev criados antes da V5e por create_all()
+    # (testes antigos rodavam no banco do compose) ja podem ter o indice.
     op.execute(
         """
         CREATE UNIQUE INDEX IF NOT EXISTS uq_execution_child_active

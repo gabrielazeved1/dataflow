@@ -10,11 +10,12 @@ import pytest
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
 
-from dataflow_common.models import Base, Dataset
+from dataflow_common.models import Dataset
 from dataflow_common.repository import create_execution, finish_execution
 from dataflow_common.storage import build_bronze_path, upload
 
-_DB_URL = "postgresql+psycopg://dataflow:changeme@localhost:5432/dataflow"
+# definido pelo tests/conftest.py (banco dataflow_test)
+_DB_URL = os.environ["POSTGRES_DSN"]
 _engine = create_engine(_DB_URL)
 _Session = sessionmaker(bind=_engine)
 
@@ -25,13 +26,6 @@ _SCHEMA = {
         {"nome": "valor", "tipo": "float", "obrigatorio": False},
     ]
 }
-
-
-@pytest.fixture(scope="session", autouse=True)
-def setup_database():
-    Base.metadata.drop_all(bind=_engine)
-    Base.metadata.create_all(bind=_engine)
-    yield
 
 
 @pytest.fixture(autouse=True)

@@ -1,3 +1,6 @@
+import os
+from unittest.mock import patch
+
 import boto3
 import pytest
 from fastapi.testclient import TestClient
@@ -7,21 +10,14 @@ from sqlalchemy.orm import sessionmaker
 from api.config import settings
 from api.database import get_db
 from api.main import app
-from dataflow_common.models import Base
 
 settings.minio_endpoint = "localhost:9000"
 
-TEST_DATABASE_URL = "postgresql+psycopg://dataflow:changeme@localhost:5432/dataflow"
+# definido pelo tests/conftest.py (banco dataflow_test)
+TEST_DATABASE_URL = os.environ["POSTGRES_DSN"]
 
 engine = create_engine(TEST_DATABASE_URL)
 TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-
-
-@pytest.fixture(scope="session", autouse=True)
-def setup_database():
-    Base.metadata.drop_all(bind=engine)
-    Base.metadata.create_all(bind=engine)
-    yield
 
 
 @pytest.fixture(autouse=True)
@@ -29,6 +25,15 @@ def clean_tables():
     with engine.begin() as conn:
         conn.execute(text("TRUNCATE TABLE execution, dataset CASCADE"))
     yield
+
+
+@pytest.fixture(autouse=True)
+def no_real_queue():
+    # Sem isso, todo teste de ingestão manda uma task de verdade pro Redis,
+    # e o worker do docker compose a consome contra o banco de dev.
+    # Testes que verificam o enfileiramento fazem o próprio patch por cima.
+    with patch("api.services.ingest.celery_client.send_task"):
+        yield
 
 
 @pytest.fixture
