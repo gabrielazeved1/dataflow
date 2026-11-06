@@ -45,7 +45,7 @@ st.divider()
 st.subheader("Últimas 10 execuções")
 
 if executions_7d:
-    dataset_by_id = {d["id"]: d["nome"] for d in datasets}
+    dataset_by_id = {d["id"]: d["name"] for d in datasets}
     rows = []
     for e in executions_7d[:10]:
         rows.append(

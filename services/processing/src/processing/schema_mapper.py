@@ -16,13 +16,13 @@ _SPARK_TYPES = {
 
 
 def build_struct_type(schema_jsonb: dict) -> StructType:
-    fields = schema_jsonb["campos"]
+    fields = schema_jsonb["fields"]
     return StructType(
         [
             StructField(
-                name=field["nome"],
-                dataType=_SPARK_TYPES[field["tipo"]],
-                nullable=not field["obrigatorio"],
+                name=field["name"],
+                dataType=_SPARK_TYPES[field["type"]],
+                nullable=not field["required"],
             )
             for field in fields
         ]

@@ -36,16 +36,16 @@ def ingest_bytes(
 
     try:
         if len(content) > settings.max_file_size_mb * 1024 * 1024:
-            raise ValueError(f"Arquivo excede {settings.max_file_size_mb}MB")
+            raise ValueError(f"File exceeds {settings.max_file_size_mb}MB")
 
         # dataset legado com formato != csv: falha explícita em vez de
         # gravar uma Bronze que o Spark não sabe ler.
-        if dataset.formato != "csv":
-            raise ValueError(f"formato '{dataset.formato}' não suportado")
+        if dataset.format != "csv":
+            raise ValueError(f"Unsupported format '{dataset.format}'")
         content.decode("utf-8")
 
         checksum = hashlib.sha256(content).hexdigest()
-        storage_path = upload_bronze(content, dataset.nome, execution.id, filename)
+        storage_path = upload_bronze(content, dataset.name, execution.id, filename)
 
         execution.status = "SUCCESS"
         execution.finished_at = datetime.now(timezone.utc)

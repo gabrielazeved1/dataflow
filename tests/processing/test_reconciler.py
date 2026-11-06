@@ -6,13 +6,13 @@ from dataflow_common.models import Dataset, Execution
 from processing import tasks
 from processing.tasks import find_bronzes_to_reconcile
 
-_SCHEMA = {"campos": [{"nome": "x", "tipo": "string", "obrigatorio": True}]}
+_SCHEMA = {"fields": [{"name": "x", "type": "string", "required": True}]}
 NOW = datetime.now(timezone.utc)
 
 
 @pytest.fixture
 def dataset(db):
-    d = Dataset(nome="reconcile", formato="csv", schema=_SCHEMA)
+    d = Dataset(name="reconcile", format="csv", schema=_SCHEMA)
     db.add(d)
     db.commit()
     return d

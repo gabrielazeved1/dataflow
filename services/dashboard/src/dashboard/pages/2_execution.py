@@ -16,22 +16,22 @@ st.title("Detalhe da execução")
 execution_id = st.query_params.get("execution_id")
 
 if not execution_id:
-    execucoes = list_executions()[:50]
-    if not execucoes:
+    executions = list_executions()[:50]
+    if not executions:
         st.info("Nenhuma execução registrada ainda.")
         st.stop()
-    opcoes = {
+    options = {
         f"{e['created_at']} · {e['layer']} · {e['status']} · {e['id'][:8]}": e["id"]
-        for e in execucoes
+        for e in executions
     }
-    escolha = st.selectbox("Escolha uma execução", list(opcoes.keys()))
-    execution_id = opcoes[escolha]
+    choice = st.selectbox("Escolha uma execução", list(options.keys()))
+    execution_id = options[choice]
 
 execution = get_execution(execution_id)
 
 datasets = list_datasets()
-dataset_nome = next(
-    (d["nome"] for d in datasets if d["id"] == execution["dataset_id"]),
+dataset_name = next(
+    (d["name"] for d in datasets if d["id"] == execution["dataset_id"]),
     "—",
 )
 
@@ -39,7 +39,7 @@ st.caption(f"ID: `{execution['id']}`")
 
 col1, col2 = st.columns(2)
 with col1:
-    st.markdown(f"**Dataset:** {dataset_nome}")
+    st.markdown(f"**Dataset:** {dataset_name}")
     st.markdown(f"**Layer:** {execution['layer']}")
     st.markdown(f"**Status:** {execution['status']}")
     st.markdown(f"**Created at:** {execution['created_at']}")

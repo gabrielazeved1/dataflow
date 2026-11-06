@@ -2,19 +2,19 @@ from unittest.mock import patch
 
 from dataflow_common.storage import StorageUnavailableError
 
-VENDAS_SCHEMA = {
-    "campos": [
-        {"nome": "data", "tipo": "date", "obrigatorio": True},
-        {"nome": "produto", "tipo": "string", "obrigatorio": True},
-        {"nome": "quantidade", "tipo": "integer", "obrigatorio": True, "min": 1},
-        {"nome": "valor_unitario", "tipo": "float", "obrigatorio": True, "min": 0.01},
+SALES_SCHEMA = {
+    "fields": [
+        {"name": "data", "type": "date", "required": True},
+        {"name": "produto", "type": "string", "required": True},
+        {"name": "quantidade", "type": "integer", "required": True, "min": 1},
+        {"name": "valor_unitario", "type": "float", "required": True, "min": 0.01},
     ]
 }
 
 
-def _create_dataset(client, nome: str, formato: str = "csv"):
+def _create_dataset(client, name: str, format: str = "csv"):
     response = client.post(
-        "/datasets/", json={"nome": nome, "formato": formato, "schema": VENDAS_SCHEMA}
+        "/datasets/", json={"name": name, "format": format, "schema": SALES_SCHEMA}
     )
     return response.json()["id"]
 
@@ -57,7 +57,7 @@ def test_ingest_file_exists_in_minio(client, minio_client):
 def test_create_dataset_json_rejected(client):
     response = client.post(
         "/datasets/",
-        json={"nome": "eventos", "formato": "json", "schema": VENDAS_SCHEMA},
+        json={"name": "eventos", "format": "json", "schema": SALES_SCHEMA},
     )
 
     assert response.status_code == 422
@@ -81,7 +81,7 @@ def test_ingest_invalid_utf8_fails(client):
 def test_ingest_legacy_json_dataset_fails(client, db):
     from dataflow_common.models import Dataset
 
-    legacy = Dataset(nome="legado", formato="json", schema=VENDAS_SCHEMA)
+    legacy = Dataset(name="legado", format="json", schema=SALES_SCHEMA)
     db.add(legacy)
     db.commit()
 
@@ -93,7 +93,7 @@ def test_ingest_legacy_json_dataset_fails(client, db):
 
     data = response.json()
     assert data["status"] == "FAILED"
-    assert "não suportado" in data["error_message"]
+    assert "Unsupported format" in data["error_message"]
     send_task.assert_not_called()
 
 

@@ -11,18 +11,18 @@ from dataflow_common.models import Dataset, Execution
 from fastapi.testclient import TestClient
 
 SCHEMA = {
-    "campos": [
-        {"nome": "data", "tipo": "date", "obrigatorio": True},
-        {"nome": "produto", "tipo": "string", "obrigatorio": True},
-        {"nome": "qtd", "tipo": "integer", "obrigatorio": True, "min": 1, "max": 100},
-        {"nome": "preco", "tipo": "float", "obrigatorio": True, "min": 0, "max": 1000},
+    "fields": [
+        {"name": "data", "type": "date", "required": True},
+        {"name": "produto", "type": "string", "required": True},
+        {"name": "qtd", "type": "integer", "required": True, "min": 1, "max": 100},
+        {"name": "preco", "type": "float", "required": True, "min": 0, "max": 1000},
     ]
 }
 
 
 @pytest.fixture
 def dataset(db):
-    d = Dataset(nome="demo", formato="csv", schema=SCHEMA)
+    d = Dataset(name="demo", format="csv", schema=SCHEMA)
     db.add(d)
     db.commit()
     db.refresh(d)
@@ -30,26 +30,26 @@ def dataset(db):
 
 
 def _row_valid(row: dict, schema: dict) -> bool:
-    for campo in schema["campos"]:
-        val = row[campo["nome"]]
-        if campo["obrigatorio"] and not val:
+    for field in schema["fields"]:
+        val = row[field["name"]]
+        if field["required"] and not val:
             return False
         if not val:
             continue
-        tipo = campo["tipo"]
-        if tipo == "date":
+        field_type = field["type"]
+        if field_type == "date":
             try:
                 date.fromisoformat(val)
             except ValueError:
                 return False
-        elif tipo in ("integer", "float"):
+        elif field_type in ("integer", "float"):
             try:
-                n = int(val) if tipo == "integer" else float(val)
+                n = int(val) if field_type == "integer" else float(val)
             except ValueError:
                 return False
-            if campo.get("min") is not None and n < campo["min"]:
+            if field.get("min") is not None and n < field["min"]:
                 return False
-            if campo.get("max") is not None and n > campo["max"]:
+            if field.get("max") is not None and n > field["max"]:
                 return False
     return True
 

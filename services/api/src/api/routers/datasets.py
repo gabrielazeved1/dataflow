@@ -13,12 +13,12 @@ router = APIRouter(prefix="/datasets", tags=["datasets"])
 # POST /datasets
 @router.post("/", response_model=DatasetResponse, status_code=201)
 def create_dataset(data: DatasetCreate, db: Session = Depends(get_db)):
-    if db.query(Dataset).filter(Dataset.nome == data.nome).first():
-        raise HTTPException(status_code=409, detail="Dataset já cadastrado")
+    if db.query(Dataset).filter(Dataset.name == data.name).first():
+        raise HTTPException(status_code=409, detail="Dataset already exists")
 
     dataset = Dataset(
-        nome=data.nome,
-        formato=data.formato,
+        name=data.name,
+        format=data.format,
         schema=data.dataset_schema.model_dump(exclude_none=True),
     )
     db.add(dataset)
@@ -40,5 +40,5 @@ def list_datasets(db: Session = Depends(get_db)):
 def get_dataset(dataset_id: UUID, db: Session = Depends(get_db)):
     dataset = db.query(Dataset).filter(Dataset.id == dataset_id).first()
     if not dataset:
-        raise HTTPException(status_code=404, detail="Dataset não encontrado")
+        raise HTTPException(status_code=404, detail="Dataset not found")
     return dataset

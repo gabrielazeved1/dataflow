@@ -3,13 +3,13 @@ from datetime import datetime, timezone
 import pytest
 from dataflow_common.models import Dataset, Execution, ExecutionMetrics
 
-SCHEMA = {"campos": [{"nome": "produto", "tipo": "string", "obrigatorio": True}]}
+SCHEMA = {"fields": [{"name": "produto", "type": "string", "required": True}]}
 
 
 @pytest.fixture
 def datasets(db):
-    sales = Dataset(nome="vendas", formato="csv", schema=SCHEMA)
-    stock = Dataset(nome="estoque", formato="csv", schema=SCHEMA)
+    sales = Dataset(name="vendas", format="csv", schema=SCHEMA)
+    stock = Dataset(name="estoque", format="csv", schema=SCHEMA)
     db.add_all([sales, stock])
     db.commit()
     db.refresh(sales)

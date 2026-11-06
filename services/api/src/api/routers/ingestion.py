@@ -64,7 +64,7 @@ def _wait_for_result(db: Session, bronze_id: UUID, timeout: int) -> Execution:
         # segura uma conexão por até `timeout` segundos.
         db.close()
         time.sleep(_SYNC_POLL_INTERVAL_SECONDS)
-    raise TimeoutError(f"Pipeline não terminou em {timeout}s")
+    raise TimeoutError(f"Pipeline did not finish within {timeout}s")
 
 
 @router.post("/{dataset_id}/ingest", response_model=ExecutionResponse, status_code=202)
@@ -77,18 +77,16 @@ def ingest(
 ):
     dataset = db.query(Dataset).filter(Dataset.id == dataset_id).first()
     if not dataset:
-        raise HTTPException(status_code=404, detail="Dataset não encontrado")
+        raise HTTPException(status_code=404, detail="Dataset not found")
 
     if not file.filename:
-        raise HTTPException(status_code=400, detail="Arquivo sem nome")
+        raise HTTPException(status_code=400, detail="File has no name")
 
     content = file.file.read()
     try:
         execution = ingest_bytes(db, dataset, file.filename, content)
     except StorageUnavailableError:
-        raise HTTPException(
-            status_code=503, detail="Storage indisponível, tente novamente"
-        )
+        raise HTTPException(status_code=503, detail="Storage unavailable, try again")
 
     if mode == "async" or execution.status == "FAILED":
         return execution

@@ -12,7 +12,7 @@ _DEFAULT_NUM_MAX = 1000
 
 
 def _random_value(field: dict[str, Any]) -> str:
-    field_type = field["tipo"]
+    field_type = field["type"]
     if field_type == "date":
         delta = (_DATE_END - _DATE_START).days
         return (_DATE_START + timedelta(days=random.randint(0, delta))).isoformat()
@@ -28,9 +28,9 @@ def _random_value(field: dict[str, Any]) -> str:
 
 
 def _invalidate(row: dict[str, str], fields: list[dict[str, Any]]) -> dict[str, str]:
-    required = [f for f in fields if f["obrigatorio"]]
+    required = [f for f in fields if f["required"]]
     ranged = [f for f in fields if f.get("min") is not None or f.get("max") is not None]
-    typed = [f for f in fields if f["tipo"] != "string"]
+    typed = [f for f in fields if f["type"] != "string"]
 
     choices: list[tuple[str, list[dict[str, Any]], float]] = []
     if required:
@@ -46,7 +46,7 @@ def _invalidate(row: dict[str, str], fields: list[dict[str, Any]]) -> dict[str, 
     weights = [w for _, _, w in choices]
     kind, candidates, _ = random.choices(choices, weights=weights, k=1)[0]
     field = random.choice(candidates)
-    name = field["nome"]
+    name = field["name"]
     row = dict(row)
 
     if kind == "null_required":
@@ -56,20 +56,20 @@ def _invalidate(row: dict[str, str], fields: list[dict[str, Any]]) -> dict[str, 
             bad = float(field["max"]) + 100
         else:
             bad = float(field["min"]) - 100
-        row[name] = str(int(bad)) if field["tipo"] == "integer" else f"{bad:.2f}"
+        row[name] = str(int(bad)) if field["type"] == "integer" else f"{bad:.2f}"
     else:
         row[name] = "not_a_number"
     return row
 
 
 def generate_csv(dataset_schema: dict[str, Any], rows: int, invalid_rate: float) -> str:
-    fields = dataset_schema["campos"]
-    names = [f["nome"] for f in fields]
+    fields = dataset_schema["fields"]
+    names = [f["name"] for f in fields]
     buf = io.StringIO()
     writer = csv.DictWriter(buf, fieldnames=names)
     writer.writeheader()
     for _ in range(rows):
-        row = {f["nome"]: _random_value(f) for f in fields}
+        row = {f["name"]: _random_value(f) for f in fields}
         if random.random() < invalid_rate:
             row = _invalidate(row, fields)
         writer.writerow(row)

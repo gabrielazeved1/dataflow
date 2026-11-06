@@ -7,39 +7,39 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 class FieldSchema(BaseModel):
-    nome: str
-    tipo: Literal["date", "string", "integer", "float"]
-    obrigatorio: bool = True
+    name: str
+    type: Literal["date", "string", "integer", "float"]
+    required: bool = True
     min: float | None = None
     max: float | None = None
 
     @model_validator(mode="after")
     def check_min_max_numeric_only(self) -> "FieldSchema":
         if self.min is not None or self.max is not None:
-            if self.tipo not in ("integer", "float"):
-                raise ValueError("min/max só são aplicáveis a campos integer ou float")
+            if self.type not in ("integer", "float"):
+                raise ValueError("min/max only apply to integer or float fields")
         return self
 
 
 class DatasetSchema(BaseModel):
-    campos: list[FieldSchema] = Field(min_length=1)
+    fields: list[FieldSchema] = Field(min_length=1)
 
     @model_validator(mode="after")
     def check_unique_field_names(self) -> "DatasetSchema":
-        names = [field.nome for field in self.campos]
+        names = [field.name for field in self.fields]
         duplicates = sorted(name for name, count in Counter(names).items() if count > 1)
         if duplicates:
-            raise ValueError(f"nomes de campos duplicados: {duplicates}")
+            raise ValueError(f"duplicate field names: {duplicates}")
         return self
 
 
 class DatasetCreate(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
-    nome: str
+    name: str
     # só CSV por enquanto: o pipeline Spark lê apenas CSV. JSON Lines é V6
     # (ver v5e.md, achado A1).
-    formato: Literal["csv"]
+    format: Literal["csv"]
     # "schema" é reservado em Pydantic — usamos validation_alias para ler o JSON
     dataset_schema: DatasetSchema = Field(validation_alias="schema")
 
@@ -48,8 +48,8 @@ class DatasetResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True, populate_by_name=True)
 
     id: UUID
-    nome: str
-    formato: str
+    name: str
+    format: str
     # lê do atributo SQLAlchemy "schema" via validation_alias, serializa como "schema"
     dataset_schema: dict[str, Any] = Field(
         validation_alias="schema", serialization_alias="schema"

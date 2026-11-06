@@ -42,7 +42,7 @@ def _decode_cursor(cursor: str) -> tuple[datetime, UUID]:
         UnicodeDecodeError,
         json.JSONDecodeError,
     ):
-        raise HTTPException(status_code=400, detail="cursor inválido")
+        raise HTTPException(status_code=400, detail="Invalid cursor")
 
 
 # GET /executions
@@ -62,7 +62,7 @@ def list_executions(
     query = db.query(Execution)
 
     if dataset is not None:
-        query = query.join(Dataset).filter(Dataset.nome == dataset)
+        query = query.join(Dataset).filter(Dataset.name == dataset)
     if status is not None:
         query = query.filter(Execution.status == status)
     if layer is not None:
@@ -107,20 +107,18 @@ def get_rejected_preview(
 ):
     execution = db.query(Execution).filter(Execution.id == silver_id).first()
     if execution is None:
-        raise HTTPException(status_code=404, detail="Execution não encontrada")
+        raise HTTPException(status_code=404, detail="Execution not found")
     if execution.layer != "SILVER":
-        raise HTTPException(status_code=400, detail="Execution precisa ser SILVER")
+        raise HTTPException(status_code=400, detail="Execution must be SILVER")
     if execution.status != "SUCCESS":
-        raise HTTPException(
-            status_code=400, detail="Execution SILVER precisa estar SUCCESS"
-        )
+        raise HTTPException(status_code=400, detail="SILVER execution must be SUCCESS")
     if execution.storage_path is None:
-        raise HTTPException(status_code=400, detail="Execution sem storage_path")
+        raise HTTPException(status_code=400, detail="Execution has no storage_path")
 
     dataset = db.query(Dataset).filter(Dataset.id == execution.dataset_id).first()
     assert dataset is not None  # FK garante existência
     try:
-        parquet_bytes = download_silver_rejected(dataset.nome, silver_id)
+        parquet_bytes = download_silver_rejected(dataset.name, silver_id)
     except StorageUnavailableError as exc:
         raise HTTPException(status_code=503, detail=str(exc))
 
@@ -134,7 +132,7 @@ def get_rejected_preview(
 def get_execution_detail(execution_id: UUID, db: Session = Depends(get_db)):
     execution = db.query(Execution).filter(Execution.id == execution_id).first()
     if execution is None:
-        raise HTTPException(status_code=404, detail="Execution não encontrada")
+        raise HTTPException(status_code=404, detail="Execution not found")
 
     response = ExecutionDetailResponse.model_validate(execution)
     if execution.layer == "GOLD":

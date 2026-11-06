@@ -8,9 +8,9 @@ from dataflow_common.models import Dataset, Execution
 @pytest.fixture
 def sample_dataset(db):
     dataset = Dataset(
-        nome="vendas_test",
-        formato="csv",
-        schema={"campos": [{"nome": "data", "tipo": "date"}]},
+        name="vendas_test",
+        format="csv",
+        schema={"fields": [{"name": "data", "type": "date"}]},
     )
     db.add(dataset)
     db.commit()
@@ -22,7 +22,7 @@ def test_get_dataset_returns_dataset_when_found(db, sample_dataset):
     result = repository.get_dataset(db, sample_dataset.id)
     assert result is not None
     assert result.id == sample_dataset.id
-    assert result.nome == "vendas_test"
+    assert result.name == "vendas_test"
 
 
 def test_get_dataset_returns_none_when_missing(db):

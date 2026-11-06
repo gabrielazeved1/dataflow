@@ -7,12 +7,12 @@ import pytest
 from dataflow_common.models import Dataset, Execution
 from dataflow_common.storage import build_silver_rejected_path
 
-SCHEMA = {"campos": [{"nome": "produto", "tipo": "string", "obrigatorio": True}]}
+SCHEMA = {"fields": [{"name": "produto", "type": "string", "required": True}]}
 
 
 @pytest.fixture
 def dataset(db):
-    d = Dataset(nome="vendas", formato="csv", schema=SCHEMA)
+    d = Dataset(name="vendas", format="csv", schema=SCHEMA)
     db.add(d)
     db.commit()
     db.refresh(d)

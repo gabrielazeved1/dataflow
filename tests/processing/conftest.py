@@ -19,10 +19,10 @@ _engine = create_engine(_DB_URL)
 _Session = sessionmaker(bind=_engine)
 
 _SCHEMA = {
-    "campos": [
-        {"nome": "produto", "tipo": "string", "obrigatorio": True},
-        {"nome": "quantidade", "tipo": "integer", "obrigatorio": True, "min": 1},
-        {"nome": "valor", "tipo": "float", "obrigatorio": False},
+    "fields": [
+        {"name": "produto", "type": "string", "required": True},
+        {"name": "quantidade", "type": "integer", "required": True, "min": 1},
+        {"name": "valor", "type": "float", "required": False},
     ]
 }
 
@@ -51,13 +51,13 @@ def minio_client():
 
 
 def _make_bronze(db, csv_content: bytes):
-    dataset = Dataset(nome="vendas_test", formato="csv", schema=_SCHEMA)
+    dataset = Dataset(name="vendas_test", format="csv", schema=_SCHEMA)
     db.add(dataset)
     db.commit()
     db.refresh(dataset)
 
     execution = create_execution(db, dataset_id=dataset.id, layer="BRONZE")
-    storage_path = build_bronze_path(dataset.nome, execution.id, "vendas.csv")
+    storage_path = build_bronze_path(dataset.name, execution.id, "vendas.csv")
     upload(
         bucket="dataflow",
         key=storage_path,

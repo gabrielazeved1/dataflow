@@ -31,9 +31,9 @@ from processing.spark import build_spark
 
 def _build_is_valid(dataset_schema: dict) -> Column:
     conditions: list[Column] = [col("_corrupt_record").isNull()]
-    for field in dataset_schema["campos"]:
-        name = field["nome"]
-        if field["obrigatorio"]:
+    for field in dataset_schema["fields"]:
+        name = field["name"]
+        if field["required"]:
             conditions.append(col(name).isNotNull())
         if field.get("min") is not None:
             conditions.append(col(name) >= field["min"])
@@ -71,10 +71,8 @@ def run(bronze_execution_id: UUID) -> UUID:
         print(f"[Bronze] execution={bronze_exec.id}")
         print(f"         storage_path={bronze_exec.storage_path}")
         print(f"         file_name={bronze_exec.file_name}")
-        print(
-            f"[Dataset] id={dataset.id} nome={dataset.nome} formato={dataset.formato}"
-        )
-        print(f"          campos={[c['nome'] for c in dataset.schema['campos']]}")
+        print(f"[Dataset] id={dataset.id} name={dataset.name} format={dataset.format}")
+        print(f"          fields={[f['name'] for f in dataset.schema['fields']]}")
 
         silver_exec, created = start_child_execution(
             session, dataset_id=dataset.id, parent_id=bronze_exec.id, layer="SILVER"
@@ -141,8 +139,8 @@ def run(bronze_execution_id: UUID) -> UUID:
             valid_part = next(valid_local.glob("part-*.parquet"))
             rejected_part = next(rejected_local.glob("part-*.parquet"))
 
-            silver_key = build_silver_path(dataset.nome, dt, silver_exec.id)
-            rejected_key = build_silver_rejected_path(dataset.nome, silver_exec.id)
+            silver_key = build_silver_path(dataset.name, dt, silver_exec.id)
+            rejected_key = build_silver_rejected_path(dataset.name, silver_exec.id)
 
             upload(
                 bucket=settings.minio_bucket,

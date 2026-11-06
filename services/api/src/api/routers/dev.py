@@ -21,9 +21,9 @@ def post_csv_sample(
 ) -> Response:
     dataset = db.query(Dataset).filter(Dataset.id == dataset_id).first()
     if dataset is None:
-        raise HTTPException(status_code=404, detail="Dataset não encontrado")
+        raise HTTPException(status_code=404, detail="Dataset not found")
     csv_text = generate_csv(dataset.schema, rows, invalid_rate)
-    filename = f"sample_{dataset.nome}_{rows}rows.csv"
+    filename = f"sample_{dataset.name}_{rows}rows.csv"
     return Response(
         content=csv_text,
         media_type="text/csv",
@@ -41,7 +41,7 @@ def post_bulk_ingest(
 ) -> dict:
     dataset = db.query(Dataset).filter(Dataset.id == dataset_id).first()
     if dataset is None:
-        raise HTTPException(status_code=404, detail="Dataset não encontrado")
+        raise HTTPException(status_code=404, detail="Dataset not found")
 
     execution_ids: list[str] = []
     try:
@@ -50,8 +50,6 @@ def post_bulk_ingest(
             execution = ingest_bytes(db, dataset, f"synthetic_{i}.csv", csv_bytes)
             execution_ids.append(str(execution.id))
     except StorageUnavailableError:
-        raise HTTPException(
-            status_code=503, detail="Storage indisponível, tente novamente"
-        )
+        raise HTTPException(status_code=503, detail="Storage unavailable, try again")
 
     return {"count": count, "rows_each": rows, "execution_ids": execution_ids}

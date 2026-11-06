@@ -4,12 +4,12 @@ from processing.errors import ConcurrentExecutionError
 from processing.idempotency import start_child_execution
 from sqlalchemy.exc import IntegrityError
 
-_SCHEMA = {"campos": [{"nome": "x", "tipo": "string", "obrigatorio": True}]}
+_SCHEMA = {"fields": [{"name": "x", "type": "string", "required": True}]}
 
 
 @pytest.fixture
 def bronze(db):
-    dataset = Dataset(nome="idem", formato="csv", schema=_SCHEMA)
+    dataset = Dataset(name="idem", format="csv", schema=_SCHEMA)
     db.add(dataset)
     db.commit()
     execution = Execution(dataset_id=dataset.id, layer="BRONZE", status="SUCCESS")

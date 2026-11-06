@@ -14,9 +14,9 @@ if not datasets:
     st.info("Nenhum dataset cadastrado.")
     st.stop()
 
-datasets_by_nome = {d["nome"]: d for d in datasets}
-nome = st.selectbox("Dataset", list(datasets_by_nome.keys()))
-dataset = datasets_by_nome[nome]
+datasets_by_name = {d["name"]: d for d in datasets}
+name = st.selectbox("Dataset", list(datasets_by_name.keys()))
+dataset = datasets_by_name[name]
 
 with st.expander("Schema (JSONB)"):
     st.json(dataset["schema"])
@@ -25,28 +25,28 @@ st.divider()
 
 st.subheader("Taxa de rejeição (últimas 20 Golds)")
 
-golds = list_executions(dataset=nome, layer="GOLD", status="SUCCESS")[:20]
+golds = list_executions(dataset=name, layer="GOLD", status="SUCCESS")[:20]
 
 if not golds:
     st.info("Nenhuma execução GOLD SUCCESS para este dataset.")
 else:
-    pontos = []
+    points = []
     for g in golds:
-        detalhe = get_execution(g["id"])
-        metrics = detalhe.get("metrics")
+        detail = get_execution(g["id"])
+        metrics = detail.get("metrics")
         if metrics is None:
             continue
-        pontos.append(
+        points.append(
             {
-                "created_at": detalhe["created_at"],
+                "created_at": detail["created_at"],
                 "rejection_rate": metrics["rejection_rate"],
             }
         )
 
-    if not pontos:
+    if not points:
         st.info("Golds sem métricas registradas.")
     else:
-        df = pd.DataFrame(pontos)
+        df = pd.DataFrame(points)
         df["created_at"] = pd.to_datetime(df["created_at"])
         df = df.sort_values("created_at").set_index("created_at")
         st.line_chart(df)
@@ -55,9 +55,9 @@ st.divider()
 
 st.subheader("Execuções do dataset")
 
-execucoes = list_executions(dataset=nome)
+executions = list_executions(dataset=name)
 
-if not execucoes:
+if not executions:
     st.info("Sem execuções para este dataset.")
 else:
     rows = [
@@ -67,6 +67,6 @@ else:
             "status": e["status"],
             "id": e["id"],
         }
-        for e in execucoes
+        for e in executions
     ]
     st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
