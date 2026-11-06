@@ -111,7 +111,8 @@ def get_rejected_preview(
         raise HTTPException(status_code=503, detail=str(exc))
 
     table = pq.read_table(BytesIO(parquet_bytes))
-    return {"rows": table.to_pylist()[:limit]}
+    # slice antes de converter: evita materializar todas as linhas em dicts
+    return {"rows": table.slice(0, limit).to_pylist()}
 
 
 # GET /executions/{execution_id}
