@@ -1,3 +1,4 @@
+import base64
 from datetime import datetime, timedelta, timezone
 
 import pytest
@@ -55,6 +56,14 @@ def test_pagination_walks_all_pages_without_duplicates(client, db, dataset):
 
 def test_invalid_cursor_returns_400(client, dataset):
     response = client.get("/executions/?after=nao-eh-base64-valido!!!")
+    assert response.status_code == 400
+
+
+@pytest.mark.parametrize("payload", ["[1]", "123", '{"id": "x"}'])
+def test_cursor_with_wrong_shape_returns_400(client, dataset, payload):
+    # base64 e json validos, mas sem o formato do cursor
+    cursor = base64.urlsafe_b64encode(payload.encode()).decode()
+    response = client.get(f"/executions/?after={cursor}")
     assert response.status_code == 400
 
 

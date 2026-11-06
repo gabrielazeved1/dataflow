@@ -1,5 +1,4 @@
 import base64
-import binascii
 import json
 from datetime import date, datetime, time, timedelta, timezone
 from io import BytesIO
@@ -35,13 +34,9 @@ def _decode_cursor(cursor: str) -> tuple[datetime, UUID]:
     try:
         payload = json.loads(base64.urlsafe_b64decode(cursor.encode()).decode())
         return datetime.fromisoformat(payload["created_at"]), UUID(payload["id"])
-    except (
-        binascii.Error,
-        ValueError,
-        KeyError,
-        UnicodeDecodeError,
-        json.JSONDecodeError,
-    ):
+    # ValueError cobre binascii.Error, UnicodeDecodeError e JSONDecodeError
+    # TypeError: json valido que nao é objeto, ex. [1]
+    except (ValueError, KeyError, TypeError):
         raise HTTPException(status_code=400, detail="Invalid cursor")
 
 
