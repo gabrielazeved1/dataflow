@@ -3,7 +3,7 @@ import logging
 from fastapi import FastAPI
 
 from api.config import settings
-from api.routers import datasets, executions, ingestion
+from api.routers import datasets, executions, ingestion, traces
 
 
 def create_app() -> FastAPI:
@@ -16,6 +16,7 @@ def create_app() -> FastAPI:
     app.include_router(datasets.router)
     app.include_router(executions.router)
     app.include_router(ingestion.router)
+    app.include_router(traces.router)
 
     if settings.env == "development":
         from api.routers import dev
