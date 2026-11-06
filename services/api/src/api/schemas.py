@@ -90,6 +90,11 @@ class ExecutionListItem(BaseModel):
     input_execution_id: UUID | None = None
 
 
+class ExecutionListResponse(BaseModel):
+    items: list[ExecutionListItem]
+    next_cursor: str | None = None
+
+
 class ExecutionMetricsResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

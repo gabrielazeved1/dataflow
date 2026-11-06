@@ -1,19 +1,15 @@
-import hashlib
-import json
 import time
-from datetime import datetime, timezone
 from typing import Literal
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, UploadFile, File
 from sqlalchemy.orm import Session
 
-from api.celery_client import celery_client
-from api.config import settings
 from api.database import get_db
-from dataflow_common.models import Dataset, Execution
 from api.schemas import ExecutionResponse
-from api.storage import StorageUnavailableError, upload_bronze
+from api.services.ingest import ingest_bytes
+from api.storage import StorageUnavailableError
+from dataflow_common.models import Dataset, Execution
 
 router = APIRouter(prefix="/datasets", tags=["ingestion"])
 
@@ -66,63 +62,18 @@ def ingest(
     if not file.filename:
         raise HTTPException(status_code=400, detail="Arquivo sem nome")
 
-    execution = Execution(
-        dataset_id=dataset.id,
-        layer="BRONZE",
-        status="RUNNING",
-        started_at=datetime.now(timezone.utc),
-        file_name=file.filename,
-    )
-    db.add(execution)
-    db.commit()
-    db.refresh(execution)
-
+    content = file.file.read()
     try:
-        content = file.file.read()
-
-        if len(content) > settings.max_file_size_mb * 1024 * 1024:
-            raise ValueError(f"Arquivo excede {settings.max_file_size_mb}MB")
-
-        if dataset.formato == "csv":
-            content.decode("utf-8")
-        elif dataset.formato == "json":
-            json.loads(content)
-
-        checksum = hashlib.sha256(content).hexdigest()
-
-        storage_path = upload_bronze(content, dataset.nome, execution.id, file.filename)
-
-        execution.status = "SUCCESS"
-        execution.finished_at = datetime.now(timezone.utc)
-        execution.file_size = len(content)
-        execution.checksum = checksum
-        execution.storage_path = storage_path
-        db.commit()
-        db.refresh(execution)
-
-    except StorageUnavailableError as e:
-        execution.status = "FAILED"
-        execution.finished_at = datetime.now(timezone.utc)
-        execution.error_message = str(e)
-        db.commit()
+        execution = ingest_bytes(db, dataset, file.filename, content)
+    except StorageUnavailableError:
         raise HTTPException(status_code=503, detail="Storage indisponível, tente novamente")
 
-    except Exception as e:
-        execution.status = "FAILED"
-        execution.finished_at = datetime.now(timezone.utc)
-        execution.error_message = str(e)
-        db.commit()
-        db.refresh(execution)
-        return execution
-
-    celery_client.send_task("processing.ingest", args=[str(execution.id)])
-
-    if mode == "async":
+    if mode == "async" or execution.status == "FAILED":
         return execution
 
     try:
         gold = _wait_for_gold(db, execution.id, _SYNC_TIMEOUT_SECONDS)
-    except TimeoutError as e:
-        raise HTTPException(status_code=504, detail=str(e))
+    except TimeoutError as exc:
+        raise HTTPException(status_code=504, detail=str(exc))
     response.status_code = 200
     return gold

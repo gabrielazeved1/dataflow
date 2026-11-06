@@ -72,7 +72,7 @@ def test_ingest_invalid_json_fails(client):
 
 def test_ingest_minio_unavailable_returns_503(client):
     dataset_id = _create_dataset(client, "vendas")
-    with patch("api.routers.ingestion.upload_bronze", side_effect=StorageUnavailableError("timeout")):
+    with patch("api.services.ingest.upload_bronze", side_effect=StorageUnavailableError("timeout")):
         response = client.post(
             f"/datasets/{dataset_id}/ingest",
             files={"file": ("vendas.csv", b"data,valor\n1,100", "text/csv")},
@@ -85,7 +85,7 @@ def test_ingest_minio_unavailable_registers_failed(client, db):
     from dataflow_common.models import Execution
 
     dataset_id = _create_dataset(client, "vendas")
-    with patch("api.routers.ingestion.upload_bronze", side_effect=StorageUnavailableError("timeout")):
+    with patch("api.services.ingest.upload_bronze", side_effect=StorageUnavailableError("timeout")):
         client.post(
             f"/datasets/{dataset_id}/ingest",
             files={"file": ("vendas.csv", b"data,valor\n1,100", "text/csv")},
@@ -159,7 +159,7 @@ def _make_worker_mock(db, status: str = "SUCCESS"):
 
 def test_ingest_default_eh_async(client):
     dataset_id = _create_dataset(client, "vendas")
-    with patch("api.routers.ingestion.celery_client.send_task") as send_task:
+    with patch("api.services.ingest.celery_client.send_task") as send_task:
         response = client.post(
             f"/datasets/{dataset_id}/ingest",
             files={"file": ("vendas.csv", VALID_CSV, "text/csv")},
@@ -177,7 +177,7 @@ def test_ingest_default_eh_async(client):
 
 def test_ingest_async_explicito(client):
     dataset_id = _create_dataset(client, "vendas")
-    with patch("api.routers.ingestion.celery_client.send_task") as send_task:
+    with patch("api.services.ingest.celery_client.send_task") as send_task:
         response = client.post(
             f"/datasets/{dataset_id}/ingest?mode=async",
             files={"file": ("vendas.csv", VALID_CSV, "text/csv")},
@@ -191,7 +191,7 @@ def test_ingest_async_explicito(client):
 def test_ingest_sync_sucesso(client, db):
     dataset_id = _create_dataset(client, "vendas")
     worker = _make_worker_mock(db, status="SUCCESS")
-    with patch("api.routers.ingestion.celery_client.send_task", side_effect=worker):
+    with patch("api.services.ingest.celery_client.send_task", side_effect=worker):
         response = client.post(
             f"/datasets/{dataset_id}/ingest?mode=sync",
             files={"file": ("vendas.csv", VALID_CSV, "text/csv")},
@@ -206,7 +206,7 @@ def test_ingest_sync_sucesso(client, db):
 def test_ingest_sync_falha(client, db):
     dataset_id = _create_dataset(client, "vendas")
     worker = _make_worker_mock(db, status="FAILED")
-    with patch("api.routers.ingestion.celery_client.send_task", side_effect=worker):
+    with patch("api.services.ingest.celery_client.send_task", side_effect=worker):
         response = client.post(
             f"/datasets/{dataset_id}/ingest?mode=sync",
             files={"file": ("vendas.csv", VALID_CSV, "text/csv")},
@@ -220,7 +220,7 @@ def test_ingest_sync_falha(client, db):
 
 def test_ingest_sync_timeout(client):
     dataset_id = _create_dataset(client, "vendas")
-    with patch("api.routers.ingestion.celery_client.send_task"), \
+    with patch("api.services.ingest.celery_client.send_task"), \
          patch("api.routers.ingestion._SYNC_TIMEOUT_SECONDS", 1):
         response = client.post(
             f"/datasets/{dataset_id}/ingest?mode=sync",

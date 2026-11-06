@@ -35,7 +35,7 @@ def list_executions(
         "to": to,
     }
     params = {k: v for k, v in params.items() if v is not None}
-    return _get("/executions/", params=params)
+    return _get("/executions/", params=params)["items"]
 
 
 @st.cache_data(ttl=5)

@@ -40,7 +40,7 @@ def _make_execution(db, dataset_id, layer, status, created_at, **extra):
 def test_list_executions_vazio(client):
     response = client.get("/executions/")
     assert response.status_code == 200
-    assert response.json() == []
+    assert response.json() == {"items": [], "next_cursor": None}
 
 
 def test_list_executions_sem_filtros_ordenacao_desc(client, db, datasets):
@@ -52,8 +52,9 @@ def test_list_executions_sem_filtros_ordenacao_desc(client, db, datasets):
     response = client.get("/executions/")
 
     assert response.status_code == 200
-    rows = response.json()
-    assert [r["layer"] for r in rows] == ["GOLD", "SILVER", "BRONZE"]
+    body = response.json()
+    assert [r["layer"] for r in body["items"]] == ["GOLD", "SILVER", "BRONZE"]
+    assert body["next_cursor"] is None
 
 
 def test_filtro_dataset_por_nome(client, db, datasets):
@@ -64,7 +65,7 @@ def test_filtro_dataset_por_nome(client, db, datasets):
     response = client.get("/executions/?dataset=vendas")
 
     assert response.status_code == 200
-    rows = response.json()
+    rows = response.json()["items"]
     assert len(rows) == 1
     assert rows[0]["dataset_id"] == str(vendas.id)
 
@@ -77,7 +78,7 @@ def test_filtro_status(client, db, datasets):
     response = client.get("/executions/?status=FAILED")
 
     assert response.status_code == 200
-    rows = response.json()
+    rows = response.json()["items"]
     assert len(rows) == 1
     assert rows[0]["status"] == "FAILED"
 
@@ -90,7 +91,7 @@ def test_filtro_layer(client, db, datasets):
     response = client.get("/executions/?layer=SILVER")
 
     assert response.status_code == 200
-    rows = response.json()
+    rows = response.json()["items"]
     assert len(rows) == 1
     assert rows[0]["layer"] == "SILVER"
 
@@ -105,7 +106,7 @@ def test_filtros_combinados(client, db, datasets):
     response = client.get("/executions/?dataset=vendas&status=SUCCESS&layer=BRONZE")
 
     assert response.status_code == 200
-    rows = response.json()
+    rows = response.json()["items"]
     assert len(rows) == 1
     assert rows[0]["dataset_id"] == str(vendas.id)
     assert rows[0]["status"] == "SUCCESS"
@@ -122,7 +123,7 @@ def test_filtro_intervalo_datas_inclusivo(client, db, datasets):
     response = client.get("/executions/?from=2026-10-15&to=2026-10-20")
 
     assert response.status_code == 200
-    rows = response.json()
+    rows = response.json()["items"]
     assert len(rows) == 2
 
 
@@ -133,7 +134,7 @@ def test_dataset_inexistente_retorna_vazio(client, db, datasets):
     response = client.get("/executions/?dataset=inexistente")
 
     assert response.status_code == 200
-    assert response.json() == []
+    assert response.json() == {"items": [], "next_cursor": None}
 
 
 # ----- GET /executions/{id} -----

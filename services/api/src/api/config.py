@@ -1,3 +1,5 @@
+from typing import Literal
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -12,6 +14,7 @@ class Settings(BaseSettings):
     max_file_size_mb: int = 100
     execution_timeout_minutes: int = 30
     redis_url: str = ""
+    env: Literal["development", "production"] = "production"
 
 
 settings = Settings()
