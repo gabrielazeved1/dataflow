@@ -43,7 +43,7 @@ def test_unknown_execution_id_exits():
         _run("00000000-0000-0000-0000-000000000000")
 
 
-def test_idempotente_nao_duplica_silver(db, bronze_execution):
+def test_idempotent_does_not_duplicate_silver(db, bronze_execution):
     _run(bronze_execution.id)
     _run(bronze_execution.id)
 
@@ -54,7 +54,7 @@ def test_idempotente_nao_duplica_silver(db, bronze_execution):
 
 
 def test_run_unknown_execution_raises_precondition_error():
-    # run() é usado pela task Celery: não pode levantar SystemExit
+    # run() roda dentro da task: nao pode levantar SystemExit
     from uuid import UUID
 
     from processing.bronze_to_silver import run
@@ -64,9 +64,8 @@ def test_run_unknown_execution_raises_precondition_error():
         run(UUID("00000000-0000-0000-0000-000000000000"))
 
 
-def test_falha_no_download_marca_silver_failed_e_permite_retry(db, bronze_execution):
-    # regressão: o download rodava fora do try e deixava a Silver RUNNING;
-    # com o índice de idempotência, o retry desistia em vez de reprocessar
+def test_download_failure_marks_silver_failed_and_allows_retry(db, bronze_execution):
+    # regressao: download fora do try deixava a Silver RUNNING e bloqueava o retry
     from dataflow_common.storage import StorageUnavailableError
     from processing.bronze_to_silver import run
 

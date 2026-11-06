@@ -56,7 +56,7 @@ def run(silver_execution_id: UUID) -> UUID:
         print(f"         storage_path={silver_exec.storage_path}")
         print(f"         started_at={silver_exec.started_at}")
         print(f"         finished_at={silver_exec.finished_at}")
-        print(f"[Dataset] id={dataset.id} nome={dataset.nome}")
+        print(f"[Dataset] id={dataset.id} name={dataset.name}")
 
         gold_exec, created = start_child_execution(
             session, dataset_id=dataset.id, parent_id=silver_exec.id, layer="GOLD"
@@ -67,13 +67,11 @@ def run(silver_execution_id: UUID) -> UUID:
 
         print(f"[Gold] execution={gold_exec.id} status={gold_exec.status}")
 
-        # tudo depois de criar a filha RUNNING fica dentro do try: se falhar
-        # fora dele (download, boot da JVM), a filha fica RUNNING, o índice
-        # de idempotência bloqueia o retry e a task desiste sem processar.
+        # tudo apos criar a filha fica no try: filha presa em RUNNING bloqueia o retry
         spark = None
         try:
             valid_key = silver_exec.storage_path
-            rejected_key = build_silver_rejected_path(dataset.nome, silver_exec.id)
+            rejected_key = build_silver_rejected_path(dataset.name, silver_exec.id)
 
             valid_bytes = download(
                 bucket=settings.minio_bucket,
@@ -128,7 +126,7 @@ def run(silver_execution_id: UUID) -> UUID:
                     Row(
                         execution_id=str(gold_exec.id),
                         silver_execution_id=str(silver_exec.id),
-                        dataset_nome=dataset.nome,
+                        dataset_name=dataset.name,
                         dt=dt,
                         valid_count=valid_count,
                         rejected_count=rejected_count,
@@ -143,7 +141,7 @@ def run(silver_execution_id: UUID) -> UUID:
             gold_df.coalesce(1).write.parquet(str(gold_local))
 
             gold_part = next(gold_local.glob("part-*.parquet"))
-            gold_key = build_gold_path(dataset.nome, dt, gold_exec.id)
+            gold_key = build_gold_path(dataset.name, dt, gold_exec.id)
 
             upload(
                 bucket=settings.minio_bucket,
@@ -171,7 +169,7 @@ def run(silver_execution_id: UUID) -> UUID:
             print("[Done] status=SUCCESS")
             return gold_exec.id
         except ExecutionAlreadyFinishedError:
-            # reaper já marcou FAILED; não há o que gravar
+            # o reaper ja marcou FAILED
             raise
         except Exception as exc:
             finish_execution(session, gold_exec, "FAILED", error_message=str(exc))

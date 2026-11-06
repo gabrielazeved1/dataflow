@@ -11,9 +11,8 @@ class Settings(BaseSettings):
     minio_bucket: str = "dataflow"
     redis_url: str
     execution_timeout_minutes: int = 30
-    # reconciler (ver v5e.md, D3)
-    reconcile_after_minutes: int = 10  # Bronze sem Silver há mais que isso
-    reconcile_max_age_hours: int = 24  # não ressuscita Bronze muito antiga
+    reconcile_after_minutes: int = 10  # espera antes de dar a Bronze como perdida
+    reconcile_max_age_hours: int = 24  # nao ressuscita Bronze antiga
     reconcile_max_attempts: int = 3  # tentativas de Silver por Bronze
 
 

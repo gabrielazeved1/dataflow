@@ -8,9 +8,9 @@ from dataflow_common.models import Dataset, Execution
 @pytest.fixture
 def sample_dataset(db):
     dataset = Dataset(
-        nome="vendas_test",
-        formato="csv",
-        schema={"campos": [{"nome": "data", "tipo": "date"}]},
+        name="vendas_test",
+        format="csv",
+        schema={"fields": [{"name": "data", "type": "date"}]},
     )
     db.add(dataset)
     db.commit()
@@ -22,7 +22,7 @@ def test_get_dataset_returns_dataset_when_found(db, sample_dataset):
     result = repository.get_dataset(db, sample_dataset.id)
     assert result is not None
     assert result.id == sample_dataset.id
-    assert result.nome == "vendas_test"
+    assert result.name == "vendas_test"
 
 
 def test_get_dataset_returns_none_when_missing(db):
@@ -91,11 +91,11 @@ def test_finish_execution_failed(db, sample_dataset):
     assert execution.storage_path is None
 
 
-def test_finish_execution_nao_sobrescreve_failed_do_reaper(db, sample_dataset):
+def test_finish_execution_does_not_overwrite_reaper_failed(db, sample_dataset):
     execution = repository.create_execution(
         db, dataset_id=sample_dataset.id, layer="SILVER"
     )
-    # simula o reaper marcando timeout enquanto o job ainda roda
+    # simula o reaper marcando timeout com o job rodando
     db.query(Execution).filter(Execution.id == execution.id).update(
         {"status": "FAILED", "error_message": "timeout"}
     )

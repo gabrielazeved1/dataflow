@@ -11,26 +11,26 @@ _DEFAULT_NUM_MIN = 0
 _DEFAULT_NUM_MAX = 1000
 
 
-def _random_value(campo: dict[str, Any]) -> str:
-    tipo = campo["tipo"]
-    if tipo == "date":
+def _random_value(field: dict[str, Any]) -> str:
+    field_type = field["type"]
+    if field_type == "date":
         delta = (_DATE_END - _DATE_START).days
         return (_DATE_START + timedelta(days=random.randint(0, delta))).isoformat()
-    if tipo == "string":
+    if field_type == "string":
         return "".join(random.choices(string.ascii_lowercase, k=8))
-    lo = campo.get("min") if campo.get("min") is not None else _DEFAULT_NUM_MIN
-    hi = campo.get("max") if campo.get("max") is not None else _DEFAULT_NUM_MAX
-    if tipo == "integer":
+    lo = field.get("min") if field.get("min") is not None else _DEFAULT_NUM_MIN
+    hi = field.get("max") if field.get("max") is not None else _DEFAULT_NUM_MAX
+    if field_type == "integer":
         return str(random.randint(int(lo), int(hi)))
-    if tipo == "float":
+    if field_type == "float":
         return f"{random.uniform(float(lo), float(hi)):.2f}"
-    raise ValueError(f"tipo desconhecido: {tipo}")
+    raise ValueError(f"unknown field type: {field_type}")
 
 
-def _invalidate(row: dict[str, str], campos: list[dict[str, Any]]) -> dict[str, str]:
-    required = [c for c in campos if c["obrigatorio"]]
-    ranged = [c for c in campos if c.get("min") is not None or c.get("max") is not None]
-    typed = [c for c in campos if c["tipo"] != "string"]
+def _invalidate(row: dict[str, str], fields: list[dict[str, Any]]) -> dict[str, str]:
+    required = [f for f in fields if f["required"]]
+    ranged = [f for f in fields if f.get("min") is not None or f.get("max") is not None]
+    typed = [f for f in fields if f["type"] != "string"]
 
     choices: list[tuple[str, list[dict[str, Any]], float]] = []
     if required:
@@ -45,32 +45,32 @@ def _invalidate(row: dict[str, str], campos: list[dict[str, Any]]) -> dict[str, 
 
     weights = [w for _, _, w in choices]
     kind, candidates, _ = random.choices(choices, weights=weights, k=1)[0]
-    campo = random.choice(candidates)
-    nome = campo["nome"]
+    field = random.choice(candidates)
+    name = field["name"]
     row = dict(row)
 
     if kind == "null_required":
-        row[nome] = ""
+        row[name] = ""
     elif kind == "out_of_range":
-        if campo.get("max") is not None:
-            bad = float(campo["max"]) + 100
+        if field.get("max") is not None:
+            bad = float(field["max"]) + 100
         else:
-            bad = float(campo["min"]) - 100
-        row[nome] = str(int(bad)) if campo["tipo"] == "integer" else f"{bad:.2f}"
+            bad = float(field["min"]) - 100
+        row[name] = str(int(bad)) if field["type"] == "integer" else f"{bad:.2f}"
     else:
-        row[nome] = "nao_eh_numero"
+        row[name] = "not_a_number"
     return row
 
 
 def generate_csv(dataset_schema: dict[str, Any], rows: int, invalid_rate: float) -> str:
-    campos = dataset_schema["campos"]
-    nomes = [c["nome"] for c in campos]
+    fields = dataset_schema["fields"]
+    names = [f["name"] for f in fields]
     buf = io.StringIO()
-    writer = csv.DictWriter(buf, fieldnames=nomes)
+    writer = csv.DictWriter(buf, fieldnames=names)
     writer.writeheader()
     for _ in range(rows):
-        row = {c["nome"]: _random_value(c) for c in campos}
+        row = {f["name"]: _random_value(f) for f in fields}
         if random.random() < invalid_rate:
-            row = _invalidate(row, campos)
+            row = _invalidate(row, fields)
         writer.writerow(row)
     return buf.getvalue()

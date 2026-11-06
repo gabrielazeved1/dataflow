@@ -4,12 +4,12 @@ from processing.errors import ConcurrentExecutionError
 from processing.idempotency import start_child_execution
 from sqlalchemy.exc import IntegrityError
 
-_SCHEMA = {"campos": [{"nome": "x", "tipo": "string", "obrigatorio": True}]}
+_SCHEMA = {"fields": [{"name": "x", "type": "string", "required": True}]}
 
 
 @pytest.fixture
 def bronze(db):
-    dataset = Dataset(nome="idem", formato="csv", schema=_SCHEMA)
+    dataset = Dataset(name="idem", format="csv", schema=_SCHEMA)
     db.add(dataset)
     db.commit()
     execution = Execution(dataset_id=dataset.id, layer="BRONZE", status="SUCCESS")
@@ -31,20 +31,20 @@ def _child(db, bronze, status):
     return child
 
 
-def test_indice_impede_duas_filhas_ativas(db, bronze):
+def test_index_blocks_two_active_children(db, bronze):
     _child(db, bronze, "RUNNING")
     with pytest.raises(IntegrityError):
         _child(db, bronze, "RUNNING")
     db.rollback()
 
 
-def test_indice_permite_nova_tentativa_apos_failed(db, bronze):
+def test_index_allows_new_attempt_after_failed(db, bronze):
     _child(db, bronze, "FAILED")
     _child(db, bronze, "FAILED")
-    _child(db, bronze, "RUNNING")  # retry: não colide com as FAILED
+    _child(db, bronze, "RUNNING")  # retry: nao colide com as FAILED
 
 
-def test_start_child_cria_quando_nao_ha_filha(db, bronze):
+def test_start_child_creates_when_no_child(db, bronze):
     child, created = start_child_execution(
         db, dataset_id=bronze.dataset_id, parent_id=bronze.id, layer="SILVER"
     )
@@ -52,7 +52,7 @@ def test_start_child_cria_quando_nao_ha_filha(db, bronze):
     assert child.status == "RUNNING"
 
 
-def test_start_child_devolve_success_existente(db, bronze):
+def test_start_child_returns_existing_success(db, bronze):
     existing = _child(db, bronze, "SUCCESS")
     child, created = start_child_execution(
         db, dataset_id=bronze.dataset_id, parent_id=bronze.id, layer="SILVER"
@@ -61,8 +61,8 @@ def test_start_child_devolve_success_existente(db, bronze):
     assert child.id == existing.id
 
 
-def test_start_child_com_filha_running_levanta_concorrencia(db, bronze):
-    # outra task já está processando esta Bronze
+def test_start_child_with_running_child_raises_concurrency(db, bronze):
+    # outra task ja processa esta Bronze
     _child(db, bronze, "RUNNING")
     with pytest.raises(ConcurrentExecutionError):
         start_child_execution(

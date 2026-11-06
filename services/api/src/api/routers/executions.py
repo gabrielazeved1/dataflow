@@ -1,5 +1,4 @@
 import base64
-import binascii
 import json
 from datetime import date, datetime, time, timedelta, timezone
 from io import BytesIO
@@ -35,17 +34,12 @@ def _decode_cursor(cursor: str) -> tuple[datetime, UUID]:
     try:
         payload = json.loads(base64.urlsafe_b64decode(cursor.encode()).decode())
         return datetime.fromisoformat(payload["created_at"]), UUID(payload["id"])
-    except (
-        binascii.Error,
-        ValueError,
-        KeyError,
-        UnicodeDecodeError,
-        json.JSONDecodeError,
-    ):
-        raise HTTPException(status_code=400, detail="cursor inválido")
+    # ValueError cobre binascii.Error, UnicodeDecodeError e JSONDecodeError
+    # TypeError: json valido que nao é objeto, ex. [1]
+    except (ValueError, KeyError, TypeError):
+        raise HTTPException(status_code=400, detail="Invalid cursor")
 
 
-# GET /executions
 @router.get("/", response_model=ExecutionListResponse)
 def list_executions(
     dataset: str | None = Query(None, description="Nome do dataset"),
@@ -62,7 +56,7 @@ def list_executions(
     query = db.query(Execution)
 
     if dataset is not None:
-        query = query.join(Dataset).filter(Dataset.nome == dataset)
+        query = query.join(Dataset).filter(Dataset.name == dataset)
     if status is not None:
         query = query.filter(Execution.status == status)
     if layer is not None:
@@ -98,7 +92,6 @@ def list_executions(
     )
 
 
-# GET /executions/{silver_id}/rejected
 @router.get("/{silver_id}/rejected", response_model=RejectedRowsResponse)
 def get_rejected_preview(
     silver_id: UUID,
@@ -107,34 +100,31 @@ def get_rejected_preview(
 ):
     execution = db.query(Execution).filter(Execution.id == silver_id).first()
     if execution is None:
-        raise HTTPException(status_code=404, detail="Execution não encontrada")
+        raise HTTPException(status_code=404, detail="Execution not found")
     if execution.layer != "SILVER":
-        raise HTTPException(status_code=400, detail="Execution precisa ser SILVER")
+        raise HTTPException(status_code=400, detail="Execution must be SILVER")
     if execution.status != "SUCCESS":
-        raise HTTPException(
-            status_code=400, detail="Execution SILVER precisa estar SUCCESS"
-        )
+        raise HTTPException(status_code=400, detail="SILVER execution must be SUCCESS")
     if execution.storage_path is None:
-        raise HTTPException(status_code=400, detail="Execution sem storage_path")
+        raise HTTPException(status_code=400, detail="Execution has no storage_path")
 
     dataset = db.query(Dataset).filter(Dataset.id == execution.dataset_id).first()
-    assert dataset is not None  # FK garante existência
+    assert dataset is not None  # a FK garante
     try:
-        parquet_bytes = download_silver_rejected(dataset.nome, silver_id)
+        parquet_bytes = download_silver_rejected(dataset.name, silver_id)
     except StorageUnavailableError as exc:
         raise HTTPException(status_code=503, detail=str(exc))
 
     table = pq.read_table(BytesIO(parquet_bytes))
-    # slice antes de converter: evita materializar todas as linhas em dicts
+    # corta antes de converter pra dicts
     return {"rows": table.slice(0, limit).to_pylist()}
 
 
-# GET /executions/{execution_id}
 @router.get("/{execution_id}", response_model=ExecutionDetailResponse)
 def get_execution_detail(execution_id: UUID, db: Session = Depends(get_db)):
     execution = db.query(Execution).filter(Execution.id == execution_id).first()
     if execution is None:
-        raise HTTPException(status_code=404, detail="Execution não encontrada")
+        raise HTTPException(status_code=404, detail="Execution not found")
 
     response = ExecutionDetailResponse.model_validate(execution)
     if execution.layer == "GOLD":

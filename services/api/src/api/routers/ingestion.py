@@ -16,16 +16,13 @@ router = APIRouter(prefix="/datasets", tags=["ingestion"])
 
 _SYNC_TIMEOUT_SECONDS = 300
 _SYNC_POLL_INTERVAL_SECONDS = 1
-# Uma execução FAILED só é tratada como resultado final depois dessa janela
-# sem tentativa nova. Precisa ser maior que o backoff máximo do retry da
-# task (retry_backoff_max=60s), senão o sync devolve FAILED no meio de um
-# retry que ainda pode dar certo.
+# FAILED so vale como final depois dessa janela sem tentativa nova
+# precisa ser maior que o retry_backoff_max da task (60s)
 _SYNC_FAILED_GRACE_SECONDS = 90
 
 
 def _latest_child(db: Session, parent_id: UUID, layer: str) -> Execution | None:
-    # a mais recente: com retry, a mesma Bronze pode ter várias Silvers
-    # (as tentativas FAILED ficam no histórico)
+    # com retry a mesma Bronze pode ter varias Silvers
     return (
         db.query(Execution)
         .filter(Execution.input_execution_id == parent_id, Execution.layer == layer)
@@ -45,11 +42,7 @@ def _is_terminal(execution: Execution) -> bool:
 
 
 def _wait_for_result(db: Session, bronze_id: UUID, timeout: int) -> Execution:
-    """Polling no Postgres até o pipeline terminar.
-
-    Devolve a Gold (SUCCESS ou FAILED) ou, se o pipeline parou na Silver,
-    a Silver FAILED. Levanta TimeoutError se nada terminar em `timeout`s.
-    """
+    # devolve a Gold, ou a Silver FAILED se o pipeline parou nela
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
         silver = _latest_child(db, bronze_id, "SILVER")
@@ -59,12 +52,10 @@ def _wait_for_result(db: Session, bronze_id: UUID, timeout: int) -> Execution:
             gold = _latest_child(db, silver.id, "GOLD")
             if gold is not None and _is_terminal(gold):
                 return gold
-        # close() devolve a conexão ao pool durante o sleep; a Session
-        # reabre outra na próxima query. Sem isso, cada chamada sync
-        # segura uma conexão por até `timeout` segundos.
+        # devolve a conexao ao pool durante o sleep
         db.close()
         time.sleep(_SYNC_POLL_INTERVAL_SECONDS)
-    raise TimeoutError(f"Pipeline não terminou em {timeout}s")
+    raise TimeoutError(f"Pipeline did not finish within {timeout}s")
 
 
 @router.post("/{dataset_id}/ingest", response_model=ExecutionResponse, status_code=202)
@@ -77,18 +68,16 @@ def ingest(
 ):
     dataset = db.query(Dataset).filter(Dataset.id == dataset_id).first()
     if not dataset:
-        raise HTTPException(status_code=404, detail="Dataset não encontrado")
+        raise HTTPException(status_code=404, detail="Dataset not found")
 
     if not file.filename:
-        raise HTTPException(status_code=400, detail="Arquivo sem nome")
+        raise HTTPException(status_code=400, detail="File has no name")
 
     content = file.file.read()
     try:
         execution = ingest_bytes(db, dataset, file.filename, content)
     except StorageUnavailableError:
-        raise HTTPException(
-            status_code=503, detail="Storage indisponível, tente novamente"
-        )
+        raise HTTPException(status_code=503, detail="Storage unavailable, try again")
 
     if mode == "async" or execution.status == "FAILED":
         return execution

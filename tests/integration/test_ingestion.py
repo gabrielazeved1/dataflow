@@ -2,19 +2,19 @@ from unittest.mock import patch
 
 from dataflow_common.storage import StorageUnavailableError
 
-VENDAS_SCHEMA = {
-    "campos": [
-        {"nome": "data", "tipo": "date", "obrigatorio": True},
-        {"nome": "produto", "tipo": "string", "obrigatorio": True},
-        {"nome": "quantidade", "tipo": "integer", "obrigatorio": True, "min": 1},
-        {"nome": "valor_unitario", "tipo": "float", "obrigatorio": True, "min": 0.01},
+SALES_SCHEMA = {
+    "fields": [
+        {"name": "data", "type": "date", "required": True},
+        {"name": "produto", "type": "string", "required": True},
+        {"name": "quantidade", "type": "integer", "required": True, "min": 1},
+        {"name": "valor_unitario", "type": "float", "required": True, "min": 0.01},
     ]
 }
 
 
-def _create_dataset(client, nome: str, formato: str = "csv"):
+def _create_dataset(client, name: str, format: str = "csv"):
     response = client.post(
-        "/datasets/", json={"nome": nome, "formato": formato, "schema": VENDAS_SCHEMA}
+        "/datasets/", json={"name": name, "format": format, "schema": SALES_SCHEMA}
     )
     return response.json()["id"]
 
@@ -57,7 +57,7 @@ def test_ingest_file_exists_in_minio(client, minio_client):
 def test_create_dataset_json_rejected(client):
     response = client.post(
         "/datasets/",
-        json={"nome": "eventos", "formato": "json", "schema": VENDAS_SCHEMA},
+        json={"name": "eventos", "format": "json", "schema": SALES_SCHEMA},
     )
 
     assert response.status_code == 422
@@ -81,7 +81,7 @@ def test_ingest_invalid_utf8_fails(client):
 def test_ingest_legacy_json_dataset_fails(client, db):
     from dataflow_common.models import Dataset
 
-    legacy = Dataset(nome="legado", formato="json", schema=VENDAS_SCHEMA)
+    legacy = Dataset(name="legado", format="json", schema=SALES_SCHEMA)
     db.add(legacy)
     db.commit()
 
@@ -93,7 +93,7 @@ def test_ingest_legacy_json_dataset_fails(client, db):
 
     data = response.json()
     assert data["status"] == "FAILED"
-    assert "não suportado" in data["error_message"]
+    assert "Unsupported format" in data["error_message"]
     send_task.assert_not_called()
 
 
@@ -138,7 +138,7 @@ def test_ingest_dataset_not_found(client):
     assert response.status_code == 404
 
 
-#  modo sync / async + Celery
+# ----- modo sync / async -----
 
 VALID_CSV = b"data,produto,quantidade,valor_unitario\n2026-10-15,caneta,2,2.50"
 
@@ -170,14 +170,8 @@ def _add_child(db, parent, layer: str, status: str, created_at=None):
 def _make_worker_mock(
     db, fail_at: str | None = None, failed_silver_first: bool = False
 ):
-    """Simula o worker: ao receber send_task, cria Silver (+ Gold) no banco.
-
-    fail_at=None     -> Silver SUCCESS, Gold SUCCESS (+ métricas)
-    fail_at="SILVER" -> Silver FAILED, sem Gold (como no pipeline real)
-    fail_at="GOLD"   -> Silver SUCCESS, Gold FAILED
-    failed_silver_first=True simula um retry: antes da Silver boa, uma
-    Silver FAILED mais antiga da primeira tentativa.
-    """
+    # simula o worker criando Silver e Gold no banco
+    # fail_at: SILVER (sem Gold) ou GOLD. failed_silver_first simula um retry
     from datetime import datetime, timedelta, timezone
 
     from dataflow_common.models import Execution, ExecutionMetrics
@@ -231,7 +225,7 @@ def _post_sync(client, dataset_id, worker, grace=0, timeout=None):
             p.stop()
 
 
-def test_ingest_default_eh_async(client):
+def test_ingest_defaults_to_async(client):
     dataset_id = _create_dataset(client, "vendas")
     with patch("api.services.ingest.celery_client.send_task") as send_task:
         response = client.post(
@@ -249,7 +243,7 @@ def test_ingest_default_eh_async(client):
     assert kwargs["args"] == [data["id"]]
 
 
-def test_ingest_async_explicito(client):
+def test_ingest_explicit_async(client):
     dataset_id = _create_dataset(client, "vendas")
     with patch("api.services.ingest.celery_client.send_task") as send_task:
         response = client.post(
@@ -262,7 +256,7 @@ def test_ingest_async_explicito(client):
     send_task.assert_called_once()
 
 
-def test_ingest_sync_sucesso(client, db):
+def test_ingest_sync_success(client, db):
     dataset_id = _create_dataset(client, "vendas")
     response = _post_sync(client, dataset_id, _make_worker_mock(db))
 
@@ -272,7 +266,7 @@ def test_ingest_sync_sucesso(client, db):
     assert data["status"] == "SUCCESS"
 
 
-def test_ingest_sync_falha_na_gold(client, db):
+def test_ingest_sync_gold_failure(client, db):
     dataset_id = _create_dataset(client, "vendas")
     response = _post_sync(client, dataset_id, _make_worker_mock(db, fail_at="GOLD"))
 
@@ -282,8 +276,8 @@ def test_ingest_sync_falha_na_gold(client, db):
     assert data["status"] == "FAILED"
 
 
-def test_ingest_sync_falha_na_silver_devolve_silver(client, db):
-    # antes: esperava uma Gold que nunca vinha e devolvia 504 após 300s
+def test_ingest_sync_silver_failure_returns_silver(client, db):
+    # antes esperava uma Gold que nunca vinha: 504 apos 300s
     dataset_id = _create_dataset(client, "vendas")
     response = _post_sync(
         client, dataset_id, _make_worker_mock(db, fail_at="SILVER"), timeout=5
@@ -295,8 +289,8 @@ def test_ingest_sync_falha_na_silver_devolve_silver(client, db):
     assert data["status"] == "FAILED"
 
 
-def test_ingest_sync_ignora_silver_failed_de_tentativa_anterior(client, db):
-    # antes: .first() sem ordenação pegava a Silver FAILED do 1º attempt
+def test_ingest_sync_ignores_failed_silver_from_previous_attempt(client, db):
+    # antes o .first() pegava a Silver FAILED da primeira tentativa
     dataset_id = _create_dataset(client, "vendas")
     worker = _make_worker_mock(db, failed_silver_first=True)
     response = _post_sync(client, dataset_id, worker, timeout=5)
@@ -307,9 +301,8 @@ def test_ingest_sync_ignora_silver_failed_de_tentativa_anterior(client, db):
     assert data["status"] == "SUCCESS"
 
 
-def test_ingest_sync_espera_janela_de_retry_antes_de_aceitar_failed(client, db):
-    # Silver acabou de falhar: pode haver retry vindo. Dentro da janela,
-    # o sync continua esperando (aqui, até estourar o timeout curto).
+def test_ingest_sync_waits_retry_window_before_accepting_failed(client, db):
+    # dentro da janela de retry o sync continua esperando
     dataset_id = _create_dataset(client, "vendas")
     response = _post_sync(
         client, dataset_id, _make_worker_mock(db, fail_at="SILVER"), grace=90, timeout=1
@@ -332,7 +325,7 @@ def test_ingest_sync_timeout(client):
     assert response.status_code == 504
 
 
-def test_mode_invalido_retorna_422(client):
+def test_invalid_mode_returns_422(client):
     dataset_id = _create_dataset(client, "vendas")
     response = client.post(
         f"/datasets/{dataset_id}/ingest?mode=batata",

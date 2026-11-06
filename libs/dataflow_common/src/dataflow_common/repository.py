@@ -38,8 +38,9 @@ def create_execution(
     return execution
 
 
+# a Execution saiu de RUNNING por outro caminho (ex.: reaper)
 class ExecutionAlreadyFinishedError(Exception):
-    """A Execution saiu de RUNNING por outro caminho (ex.: reaper)."""
+    pass
 
 
 def finish_execution(
@@ -49,25 +50,25 @@ def finish_execution(
     storage_path: str | None = None,
     error_message: str | None = None,
 ) -> None:
-    # UPDATE condicional: só sai de RUNNING. Se o reaper já marcou FAILED
-    # por timeout, estado terminal não volta atrás: o reaper vence.
+    # so sai de RUNNING: se o reaper ja marcou FAILED, ele vence
     values: dict = {"status": status, "finished_at": _utcnow()}
     if storage_path:
         values["storage_path"] = storage_path
     if error_message:
         values["error_message"] = error_message
 
-    result = session.execute(
+    updated_id = session.execute(
         update(Execution)
         .where(Execution.id == execution.id, Execution.status == "RUNNING")
         .values(**values)
+        .returning(Execution.id)
         .execution_options(synchronize_session=False)
-    )
-    if result.rowcount == 0:
-        # descarta o que estava pendente na transação (ex.: métricas da Gold)
+    ).scalar_one_or_none()
+    if updated_id is None:
+        # descarta pendentes da transacao (ex.: metricas da Gold)
         session.rollback()
         raise ExecutionAlreadyFinishedError(
-            f"Execution {execution.id} não está mais em RUNNING"
+            f"Execution {execution.id} nao esta mais em RUNNING"
         )
     session.commit()
     session.refresh(execution)

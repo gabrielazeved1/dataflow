@@ -6,41 +6,40 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
-class CampoSchema(BaseModel):
-    nome: str
-    tipo: Literal["date", "string", "integer", "float"]
-    obrigatorio: bool = True
+class FieldSchema(BaseModel):
+    name: str
+    type: Literal["date", "string", "integer", "float"]
+    required: bool = True
     min: float | None = None
     max: float | None = None
 
     @model_validator(mode="after")
-    def min_max_apenas_numerico(self) -> "CampoSchema":
+    def check_min_max_numeric_only(self) -> "FieldSchema":
         if self.min is not None or self.max is not None:
-            if self.tipo not in ("integer", "float"):
-                raise ValueError("min/max só são aplicáveis a campos integer ou float")
+            if self.type not in ("integer", "float"):
+                raise ValueError("min/max only apply to integer or float fields")
         return self
 
 
 class DatasetSchema(BaseModel):
-    campos: list[CampoSchema] = Field(min_length=1)
+    fields: list[FieldSchema] = Field(min_length=1)
 
     @model_validator(mode="after")
-    def nomes_de_campos_unicos(self) -> "DatasetSchema":
-        nomes = [campo.nome for campo in self.campos]
-        duplicados = sorted(nome for nome, count in Counter(nomes).items() if count > 1)
-        if duplicados:
-            raise ValueError(f"nomes de campos duplicados: {duplicados}")
+    def check_unique_field_names(self) -> "DatasetSchema":
+        names = [field.name for field in self.fields]
+        duplicates = sorted(name for name, count in Counter(names).items() if count > 1)
+        if duplicates:
+            raise ValueError(f"duplicate field names: {duplicates}")
         return self
 
 
 class DatasetCreate(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
-    nome: str
-    # só CSV por enquanto: o pipeline Spark lê apenas CSV. JSON Lines é V6
-    # (ver v5e.md, achado A1).
-    formato: Literal["csv"]
-    # "schema" é reservado em Pydantic — usamos validation_alias para ler o JSON
+    name: str
+    # so csv: o Spark nao le json - fica para outras versoes adicionar json ou pdf
+    format: Literal["csv"]
+    # "schema" é reservado no pydantic, dai o alias
     dataset_schema: DatasetSchema = Field(validation_alias="schema")
 
 
@@ -48,9 +47,9 @@ class DatasetResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True, populate_by_name=True)
 
     id: UUID
-    nome: str
-    formato: str
-    # lê do atributo SQLAlchemy "schema" via validation_alias, serializa como "schema"
+    name: str
+    format: str
+    # le o atributo schema do model e devolve como "schema"
     dataset_schema: dict[str, Any] = Field(
         validation_alias="schema", serialization_alias="schema"
     )

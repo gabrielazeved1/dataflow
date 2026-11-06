@@ -1,7 +1,7 @@
 """execution: indice unico parcial de filha ativa
 
-Garante no banco a idempotencia do pipeline: no maximo uma execucao
-RUNNING/SUCCESS por (input_execution_id, layer). Ver v5e.md (D3).
+garante no banco a idempotencia do pipeline: no maximo uma execucao
+RUNNING/SUCCESS por (input_execution_id, layer)
 
 Revision ID: c7e2a91d4f10
 Revises: bec933f66ff0
@@ -20,8 +20,7 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    # IF NOT EXISTS: bancos de dev criados antes da V5e por create_all()
-    # (testes antigos rodavam no banco do compose) ja podem ter o indice.
+    # IF NOT EXISTS: bancos antigos criados por create_all() ja tem o indice
     op.execute("""
         CREATE UNIQUE INDEX IF NOT EXISTS uq_execution_child_active
         ON execution (input_execution_id, layer)

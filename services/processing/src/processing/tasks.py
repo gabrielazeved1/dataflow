@@ -22,7 +22,7 @@ from processing.silver_to_gold import run as _run_silver_to_gold
     retry_backoff_max=60,
     retry_jitter=True,
     default_retry_delay=2,
-    max_retries=3,  # 3 retries = 4 execucoes totais
+    max_retries=3,  # 3 retries = 4 tentativas no total
 )
 def ingest(bronze_execution_id: str) -> str | None:
     bronze_id = UUID(bronze_execution_id)
@@ -30,7 +30,7 @@ def ingest(bronze_execution_id: str) -> str | None:
         silver_id = _run_bronze_to_silver(bronze_id)
         gold_id = _run_silver_to_gold(silver_id)
     except ConcurrentExecutionError as exc:
-        # mensagem duplicada pra mesma Bronze: a outra task faz o trabalho
+        # mensagem duplicada: a outra task faz o trabalho
         print(f"[Ingest] desistindo: {exc}")
         return None
     return str(gold_id)
@@ -38,8 +38,7 @@ def ingest(bronze_execution_id: str) -> str | None:
 
 @celery_app.task(name="processing.reap_stuck_executions")
 def reap_stuck_executions() -> int:
-    # marca como failed toda execution  mais antiga que
-    # execution_timeout_minutes. agendada pelo celery beat.
+    # marca FAILED o que passou do timeout em RUNNING
     now = datetime.now(timezone.utc)
     cutoff = now - timedelta(minutes=settings.execution_timeout_minutes)
     with SessionLocal() as session:
@@ -65,22 +64,13 @@ def reap_stuck_executions() -> int:
 
 
 def find_bronzes_to_reconcile(session, now: datetime) -> list[UUID]:
-    """Bronzes SUCCESS que deveriam ter virado Silver e não viraram.
-
-    Dois casos:
-    1. nenhuma Silver filha: o send_task da API se perdeu (Redis fora,
-       API caiu entre o commit e o enfileiramento);
-    2. todas as Silvers filhas FAILED por "timeout": o worker morreu no
-       meio e o reaper marcou. Limitado a reconcile_max_attempts pra não
-       entrar em loop com uma Bronze que sempre derruba o worker.
-
-    Silver FAILED por qualquer outro motivo (erro de dado, retry esgotado)
-    não entra: repetir não resolve.
-    """
+    # bronze sem silver: send_task perdido (redis fora ou api caiu)
+    # bronze so com silver FAILED por timeout: worker morreu no meio
+    # erro de dado nao entra, repetir nao resolve
     blocking = aliased(Execution)
     attempt = aliased(Execution)
 
-    # existe Silver ativa, ou Silver que falhou por motivo != timeout?
+    # silver ativa ou failed por outro motivo bloqueia
     has_blocking_silver = exists().where(
         blocking.input_execution_id == Execution.id,
         blocking.layer == "SILVER",
@@ -120,9 +110,8 @@ def find_bronzes_to_reconcile(session, now: datetime) -> list[UUID]:
 
 @celery_app.task(name="processing.reconcile_bronzes")
 def reconcile_bronzes() -> int:
-    # A tabela execution funciona como outbox: Bronze SUCCESS sem Silver é
-    # uma tarefa que deveria estar na fila. Reenfileirar é seguro porque
-    # o pipeline é idempotente (índice uq_execution_child_active).
+    # a tabela execution faz papel de outbox
+    # reenfileirar é seguro por causa do indice de idempotencia
     with SessionLocal() as session:
         bronze_ids = find_bronzes_to_reconcile(session, datetime.now(timezone.utc))
     for bronze_id in bronze_ids:

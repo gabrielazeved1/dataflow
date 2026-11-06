@@ -31,11 +31,9 @@ class Dataset(Base):
     id: Mapped[UUID] = mapped_column(
         PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4
     )
-    nome: Mapped[str] = mapped_column(String, unique=True)
-    formato: Mapped[str] = mapped_column(String)
-    schema: Mapped[dict] = mapped_column(
-        JSONB
-    )  # o postgres aceita um json , ou seja o schema mora como dado
+    name: Mapped[str] = mapped_column(String, unique=True)
+    format: Mapped[str] = mapped_column(String)
+    schema: Mapped[dict] = mapped_column(JSONB)  # schema do usuario é dado, nao codigo
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=_utcnow
     )
@@ -43,10 +41,8 @@ class Dataset(Base):
 
 class Execution(Base):
     __tablename__ = "execution"
-    # Idempotência garantida pelo banco: no máximo uma filha ativa
-    # (RUNNING/SUCCESS) por (pai, camada). Tentativas FAILED ficam fora do
-    # índice, então retry cria tentativa nova normalmente. Bronze tem
-    # input_execution_id NULL, e NULLs não colidem em índice único.
+    # no maximo uma filha ativa por (pai, layer)
+    # FAILED fica fora pro retry criar outra tentativa
     __table_args__ = (
         Index(
             "uq_execution_child_active",

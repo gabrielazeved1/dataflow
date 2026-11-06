@@ -7,7 +7,7 @@ from pyspark.sql.types import (
     StructType,
 )
 
-_TIPO_PARA_SPARK = {
+_SPARK_TYPES = {
     "date": DateType(),
     "string": StringType(),
     "integer": LongType(),
@@ -16,14 +16,14 @@ _TIPO_PARA_SPARK = {
 
 
 def build_struct_type(schema_jsonb: dict) -> StructType:
-    campos = schema_jsonb["campos"]
+    fields = schema_jsonb["fields"]
     return StructType(
         [
             StructField(
-                name=campo["nome"],
-                dataType=_TIPO_PARA_SPARK[campo["tipo"]],
-                nullable=not campo["obrigatorio"],
+                name=field["name"],
+                dataType=_SPARK_TYPES[field["type"]],
+                nullable=not field["required"],
             )
-            for campo in campos
+            for field in fields
         ]
     )

@@ -31,18 +31,20 @@ from processing.spark import build_spark
 
 def _build_is_valid(dataset_schema: dict) -> Column:
     conditions: list[Column] = [col("_corrupt_record").isNull()]
-    for campo in dataset_schema["campos"]:
-        nome = campo["nome"]
-        if campo["obrigatorio"]:
-            conditions.append(col(nome).isNotNull())
-        if campo.get("min") is not None:
-            conditions.append(col(nome) >= campo["min"])
-        if campo.get("max") is not None:
-            conditions.append(col(nome) <= campo["max"])
+    for field in dataset_schema["fields"]:
+        name = field["name"]
+        if field["required"]:
+            conditions.append(col(name).isNotNull())
+        if field.get("min") is not None:
+            conditions.append(col(name) >= field["min"])
+        if field.get("max") is not None:
+            conditions.append(col(name) <= field["max"])
     return reduce(and_, conditions)
 
 
-def _split(df: DataFrame, dataset_schema: dict) -> tuple[DataFrame, DataFrame]:
+def _split_valid_rejected(
+    df: DataFrame, dataset_schema: dict
+) -> tuple[DataFrame, DataFrame]:
     is_valid = _build_is_valid(dataset_schema)
     valid_df = df.filter(is_valid).drop("_corrupt_record")
     rejected_df = df.filter(~is_valid)
@@ -69,10 +71,8 @@ def run(bronze_execution_id: UUID) -> UUID:
         print(f"[Bronze] execution={bronze_exec.id}")
         print(f"         storage_path={bronze_exec.storage_path}")
         print(f"         file_name={bronze_exec.file_name}")
-        print(
-            f"[Dataset] id={dataset.id} nome={dataset.nome} formato={dataset.formato}"
-        )
-        print(f"          campos={[c['nome'] for c in dataset.schema['campos']]}")
+        print(f"[Dataset] id={dataset.id} name={dataset.name} format={dataset.format}")
+        print(f"          fields={[f['name'] for f in dataset.schema['fields']]}")
 
         silver_exec, created = start_child_execution(
             session, dataset_id=dataset.id, parent_id=bronze_exec.id, layer="SILVER"
@@ -83,9 +83,7 @@ def run(bronze_execution_id: UUID) -> UUID:
 
         print(f"[Silver] execution={silver_exec.id} status={silver_exec.status}")
 
-        # tudo depois de criar a filha RUNNING fica dentro do try: se falhar
-        # fora dele (download, boot da JVM), a filha fica RUNNING, o índice
-        # de idempotência bloqueia o retry e a task desiste sem processar.
+        # tudo apos criar a filha fica no try: filha presa em RUNNING bloqueia o retry
         spark = None
         try:
             bronze_bytes = download(
@@ -117,7 +115,7 @@ def run(bronze_execution_id: UUID) -> UUID:
 
             total = df.count()
 
-            valid_df, rejected_df = _split(df, dataset.schema)
+            valid_df, rejected_df = _split_valid_rejected(df, dataset.schema)
             valid_count = valid_df.count()
             rejected_count = rejected_df.count()
 
@@ -139,8 +137,8 @@ def run(bronze_execution_id: UUID) -> UUID:
             valid_part = next(valid_local.glob("part-*.parquet"))
             rejected_part = next(rejected_local.glob("part-*.parquet"))
 
-            silver_key = build_silver_path(dataset.nome, dt, silver_exec.id)
-            rejected_key = build_silver_rejected_path(dataset.nome, silver_exec.id)
+            silver_key = build_silver_path(dataset.name, dt, silver_exec.id)
+            rejected_key = build_silver_rejected_path(dataset.name, silver_exec.id)
 
             upload(
                 bucket=settings.minio_bucket,
@@ -166,7 +164,7 @@ def run(bronze_execution_id: UUID) -> UUID:
             print("[Done] status=SUCCESS")
             return silver_exec.id
         except ExecutionAlreadyFinishedError:
-            # reaper já marcou FAILED; não há o que gravar
+            # o reaper ja marcou FAILED
             raise
         except Exception as exc:
             finish_execution(session, silver_exec, "FAILED", error_message=str(exc))

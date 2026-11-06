@@ -9,6 +9,7 @@ services:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    # os outros servicos so sobem depois que o banco responde
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
       interval: 5s
@@ -22,6 +23,7 @@ services:
     environment:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+    # 9000 é a api s3, 9001 o console web
     ports:
       - "9000:9000"
       - "9001:9001"
@@ -33,6 +35,7 @@ services:
       timeout: 5s
       retries: 5
 
+  # roda uma vez: cria o bucket e encerra
   minio-init:
     build:
       context: ./infra/docker/minio
@@ -47,6 +50,7 @@ services:
       "
     env_file: .env
 
+  # broker do celery. sem volume: task perdida o reconciler reenfileira
   redis:
     image: redis:7-alpine
     ports:
@@ -57,11 +61,13 @@ services:
       timeout: 5s
       retries: 5
 
+  # aplica as migrations e encerra. api, worker e beat esperam ele terminar
   db-migrate:
     build:
       context: .
       dockerfile: services/api/Dockerfile
     env_file: .env
+    # na rede do compose o host é o nome do servico, nao localhost
     environment:
       POSTGRES_DSN: postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
     depends_on:
@@ -93,7 +99,7 @@ services:
         condition: service_healthy
       db-migrate:
         condition: service_completed_successfully
-
+    # bind mount do codigo: o --reload pega a edicao sem rebuild
     volumes:
       - ./services/api/src:/app/services/api/src
       - ./libs/dataflow_common/src:/app/libs/dataflow_common/src
@@ -117,11 +123,11 @@ services:
         condition: service_healthy
       db-migrate:
         condition: service_completed_successfully
+    # o celery nao recarrega sozinho: editou o codigo, reinicia o worker
     volumes:
       - ./services/processing/src:/app/services/processing/src
       - ./libs/dataflow_common/src:/app/libs/dataflow_common/src
-    # cada processo filho sobe a própria JVM com local[*]: sem limite, o
-    # prefork cria um por CPU e as JVMs estouram a memória do Docker
+    # uma jvm por processo: sem limite o prefork cria um por cpu e estoura a memoria
     command: >
       uv run --package dataflow-processing celery -A processing.celery_app
       worker --loglevel=info --concurrency=${WORKER_CONCURRENCY:-2}
@@ -143,6 +149,7 @@ services:
     volumes:
       - ./services/processing/src:/app/services/processing/src
       - ./libs/dataflow_common/src:/app/libs/dataflow_common/src
+    # so agenda reaper e reconciler, quem executa é o worker
     command: uv run --package dataflow-processing celery -A processing.celery_app beat --loglevel=info
 
   dashboard:
@@ -150,6 +157,7 @@ services:
       context: .
       dockerfile: services/dashboard/Dockerfile
     env_file: .env
+    # fala so com a api, nunca direto com postgres ou minio
     environment:
       API_URL: http://api:8000
     ports:
@@ -161,6 +169,7 @@ services:
       - ./services/dashboard/src:/app/services/dashboard/src
       - ./services/dashboard/.streamlit:/app/.streamlit
 
+# persistem no docker compose down, somem com down -v
 volumes:
   postgres_data:
   minio_data:
