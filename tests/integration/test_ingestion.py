@@ -333,3 +333,42 @@ def test_invalid_mode_returns_422(client):
     )
 
     assert response.status_code == 422
+
+
+def test_ingest_records_trace_events(client, db):
+    from dataflow_common.models import ExecutionEvent
+
+    dataset_id = _create_dataset(client, "vendas")
+    response = client.post(
+        f"/datasets/{dataset_id}/ingest",
+        files={"file": ("vendas.csv", VALID_CSV, "text/csv")},
+    )
+
+    bronze_id = response.json()["id"]
+    steps = [
+        e.step
+        for e in db.query(ExecutionEvent)
+        .filter(ExecutionEvent.trace_id == bronze_id)
+        .order_by(ExecutionEvent.created_at)
+    ]
+    assert steps == ["received", "bronze_stored", "enqueued"]
+
+
+def test_ingest_redis_down_still_accepts_and_records_lost_request(client, db):
+    # bronze salva: o reconciler reenfileira depois, o cliente nao recebe 500
+    from dataflow_common.models import ExecutionEvent
+
+    dataset_id = _create_dataset(client, "vendas")
+    with patch(
+        "api.services.ingest.celery_client.send_task",
+        side_effect=ConnectionError("redis fora"),
+    ):
+        response = client.post(
+            f"/datasets/{dataset_id}/ingest",
+            files={"file": ("vendas.csv", VALID_CSV, "text/csv")},
+        )
+
+    assert response.status_code == 202
+    assert response.json()["status"] == "SUCCESS"
+    last = db.query(ExecutionEvent).order_by(ExecutionEvent.created_at.desc()).first()
+    assert last.step == "enqueue_failed"
