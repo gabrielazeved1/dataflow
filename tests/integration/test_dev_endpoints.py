@@ -4,13 +4,11 @@ from datetime import date
 from unittest.mock import patch
 
 import pytest
-from fastapi.testclient import TestClient
-
 from api.config import settings
 from api.database import get_db
 from api.main import create_app
 from dataflow_common.models import Dataset, Execution
-
+from fastapi.testclient import TestClient
 
 SCHEMA = {
     "campos": [
@@ -58,6 +56,7 @@ def _row_valid(row: dict, schema: dict) -> bool:
 
 # ----- gate dev-only -----
 
+
 def test_dev_router_only_in_development(db, monkeypatch):
     monkeypatch.setattr(settings, "env", "production")
     prod_app = create_app()
@@ -74,6 +73,7 @@ def test_dev_router_only_in_development(db, monkeypatch):
 
 
 # ----- /dev/csv/sample -----
+
 
 def test_csv_sample_gera_csv_todo_valido(client, dataset):
     response = client.post(
@@ -106,6 +106,7 @@ def test_csv_sample_dataset_inexistente(client):
 
 
 # ----- /dev/bulk-ingest -----
+
 
 def test_bulk_ingest_cria_n_execucoes(client, db, dataset):
     with patch("api.services.ingest.celery_client.send_task"):

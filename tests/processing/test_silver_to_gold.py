@@ -4,10 +4,7 @@ from unittest.mock import patch
 
 import pyarrow.parquet as pq
 import pytest
-
 from dataflow_common.models import Execution, ExecutionMetrics
-from dataflow_common.storage import build_gold_path
-
 from processing.silver_to_gold import main
 
 
@@ -94,3 +91,39 @@ def test_idempotente_nao_duplica_gold(db, silver_execution):
     golds = db.query(Execution).filter(Execution.layer == "GOLD").all()
     assert len(golds) == 1
     assert golds[0].status == "SUCCESS"
+
+
+def test_run_silver_not_success_raises_precondition_error(
+    db, bronze_execution_with_nulls
+):
+    from dataflow_common.repository import create_execution
+    from processing.errors import PreconditionError
+    from processing.silver_to_gold import run
+
+    silver = create_execution(
+        db,
+        dataset_id=bronze_execution_with_nulls.dataset_id,
+        layer="SILVER",
+        input_execution_id=bronze_execution_with_nulls.id,
+    )
+    with pytest.raises(PreconditionError):
+        run(silver.id)
+
+
+def test_falha_no_download_marca_gold_failed(db, silver_execution):
+    from unittest.mock import patch
+
+    from dataflow_common.models import Execution
+    from dataflow_common.storage import StorageUnavailableError
+    from processing.silver_to_gold import run
+
+    with patch(
+        "processing.silver_to_gold.download",
+        side_effect=StorageUnavailableError("minio fora"),
+    ):
+        with pytest.raises(StorageUnavailableError):
+            run(silver_execution.id)
+
+    db.expire_all()
+    golds = db.query(Execution).filter(Execution.layer == "GOLD").all()
+    assert [g.status for g in golds] == ["FAILED"]

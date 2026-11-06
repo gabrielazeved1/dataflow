@@ -1,6 +1,5 @@
 from uuid import UUID
 
-from api.config import settings
 from dataflow_common.storage import (
     StorageUnavailableError,
     build_bronze_path,
@@ -9,10 +8,14 @@ from dataflow_common.storage import (
 from dataflow_common.storage import download as _download
 from dataflow_common.storage import upload as _upload
 
+from api.config import settings
+
 __all__ = ["StorageUnavailableError", "upload_bronze", "download_silver_rejected"]
 
 
-def upload_bronze(content: bytes, dataset_name: str, execution_id: UUID, file_name: str) -> str:
+def upload_bronze(
+    content: bytes, dataset_name: str, execution_id: UUID, file_name: str
+) -> str:
     path = build_bronze_path(dataset_name, execution_id, file_name)
     _upload(
         bucket=settings.minio_bucket,

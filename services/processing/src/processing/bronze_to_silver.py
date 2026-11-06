@@ -5,13 +5,8 @@ from operator import and_
 from pathlib import Path
 from uuid import UUID
 
-from pyspark.sql import Column, DataFrame
-from pyspark.sql.functions import col
-from pyspark.sql.types import StringType, StructField, StructType
-
-from dataflow_common.models import Execution
 from dataflow_common.repository import (
-    create_execution,
+    ExecutionAlreadyFinishedError,
     finish_execution,
     get_dataset,
     get_execution,
@@ -22,9 +17,14 @@ from dataflow_common.storage import (
     download,
     upload,
 )
+from pyspark.sql import Column, DataFrame
+from pyspark.sql.functions import col
+from pyspark.sql.types import StringType, StructField, StructType
 
 from processing.config import settings
 from processing.database import SessionLocal
+from processing.errors import PreconditionError
+from processing.idempotency import start_child_execution
 from processing.schema_mapper import build_struct_type
 from processing.spark import build_spark
 
@@ -53,65 +53,60 @@ def run(bronze_execution_id: UUID) -> UUID:
     with SessionLocal() as session:
         bronze_exec = get_execution(session, bronze_execution_id)
         if bronze_exec is None:
-            raise SystemExit(f"Execution {bronze_execution_id} nao encontrada")
+            raise PreconditionError(f"Execution {bronze_execution_id} nao encontrada")
         if bronze_exec.layer != "BRONZE":
-            raise SystemExit(
-                f"Execution {bronze_execution_id} e {bronze_exec.layer}, esperava BRONZE"
+            raise PreconditionError(
+                f"Execution {bronze_execution_id} e {bronze_exec.layer}, "
+                "esperava BRONZE"
             )
         if bronze_exec.storage_path is None:
-            raise SystemExit(f"Execution {bronze_execution_id} sem storage_path")
+            raise PreconditionError(f"Execution {bronze_execution_id} sem storage_path")
 
         dataset = get_dataset(session, bronze_exec.dataset_id)
         if dataset is None:
-            raise SystemExit(f"Dataset {bronze_exec.dataset_id} nao encontrado")
+            raise PreconditionError(f"Dataset {bronze_exec.dataset_id} nao encontrado")
 
         print(f"[Bronze] execution={bronze_exec.id}")
         print(f"         storage_path={bronze_exec.storage_path}")
         print(f"         file_name={bronze_exec.file_name}")
-        print(f"[Dataset] id={dataset.id} nome={dataset.nome} formato={dataset.formato}")
+        print(
+            f"[Dataset] id={dataset.id} nome={dataset.nome} formato={dataset.formato}"
+        )
         print(f"          campos={[c['nome'] for c in dataset.schema['campos']]}")
 
-        existing = (
-            session.query(Execution)
-            .filter(
-                Execution.input_execution_id == bronze_exec.id,
-                Execution.layer == "SILVER",
-                Execution.status == "SUCCESS",
-            )
-            .first()
+        silver_exec, created = start_child_execution(
+            session, dataset_id=dataset.id, parent_id=bronze_exec.id, layer="SILVER"
         )
-        if existing is not None:
-            print(f"[Skip] Silver ja existe: {existing.id} status=SUCCESS")
-            return existing.id
-
-        silver_exec = create_execution(
-            session,
-            dataset_id=dataset.id,
-            layer="SILVER",
-            input_execution_id=bronze_exec.id,
-        )
+        if not created:
+            print(f"[Skip] Silver ja existe: {silver_exec.id} status=SUCCESS")
+            return silver_exec.id
 
         print(f"[Silver] execution={silver_exec.id} status={silver_exec.status}")
 
-        bronze_bytes = download(
-            bucket=settings.minio_bucket,
-            key=bronze_exec.storage_path,
-            endpoint=settings.minio_endpoint,
-            access_key=settings.minio_access_key,
-            secret_key=settings.minio_secret_key,
-        )
-
-        local_path = Path("/tmp") / f"{silver_exec.id}.csv"
-        local_path.write_bytes(bronze_bytes)
-
-        print(f"[Download] {len(bronze_bytes)} bytes -> {local_path}")
-
-        base_struct = build_struct_type(dataset.schema)
-        read_struct = StructType(
-            base_struct.fields + [StructField("_corrupt_record", StringType(), True)]
-        )
-        spark = build_spark(f"bronze_to_silver:{silver_exec.id}")
+        # tudo depois de criar a filha RUNNING fica dentro do try: se falhar
+        # fora dele (download, boot da JVM), a filha fica RUNNING, o índice
+        # de idempotência bloqueia o retry e a task desiste sem processar.
+        spark = None
         try:
+            bronze_bytes = download(
+                bucket=settings.minio_bucket,
+                key=bronze_exec.storage_path,
+                endpoint=settings.minio_endpoint,
+                access_key=settings.minio_access_key,
+                secret_key=settings.minio_secret_key,
+            )
+
+            local_path = Path("/tmp") / f"{silver_exec.id}.csv"
+            local_path.write_bytes(bronze_bytes)
+
+            print(f"[Download] {len(bronze_bytes)} bytes -> {local_path}")
+
+            base_struct = build_struct_type(dataset.schema)
+            read_struct = StructType(
+                base_struct.fields
+                + [StructField("_corrupt_record", StringType(), True)]
+            )
+            spark = build_spark(f"bronze_to_silver:{silver_exec.id}")
             df = spark.read.csv(
                 str(local_path),
                 header=True,
@@ -126,7 +121,9 @@ def run(bronze_execution_id: UUID) -> UUID:
             valid_count = valid_df.count()
             rejected_count = rejected_df.count()
 
-            print(f"[Split] total={total} valid={valid_count} rejected={rejected_count}")
+            print(
+                f"[Split] total={total} valid={valid_count} rejected={rejected_count}"
+            )
             if rejected_count > 0:
                 print("[Rejected] amostras:")
                 rejected_df.show(5, truncate=False)
@@ -166,19 +163,26 @@ def run(bronze_execution_id: UUID) -> UUID:
             print(f"[Upload] rejected -> {rejected_key}")
 
             finish_execution(session, silver_exec, "SUCCESS", storage_path=silver_key)
-            print(f"[Done] status=SUCCESS")
+            print("[Done] status=SUCCESS")
             return silver_exec.id
+        except ExecutionAlreadyFinishedError:
+            # reaper já marcou FAILED; não há o que gravar
+            raise
         except Exception as exc:
             finish_execution(session, silver_exec, "FAILED", error_message=str(exc))
             print(f"[Error] {exc}")
             raise
         finally:
-            spark.stop()
+            if spark is not None:
+                spark.stop()
 
 
 def main() -> None:
     bronze_execution_id = UUID(sys.argv[1])
-    silver_id = run(bronze_execution_id)
+    try:
+        silver_id = run(bronze_execution_id)
+    except PreconditionError as exc:
+        raise SystemExit(str(exc)) from exc
     print(f"[Done] silver_id={silver_id}")
 
 

@@ -1,6 +1,7 @@
 from datetime import datetime, timezone
 from uuid import UUID
 
+from sqlalchemy import update
 from sqlalchemy.orm import Session
 
 from dataflow_common.models import Dataset, Execution, ExecutionMetrics
@@ -37,6 +38,10 @@ def create_execution(
     return execution
 
 
+class ExecutionAlreadyFinishedError(Exception):
+    """A Execution saiu de RUNNING por outro caminho (ex.: reaper)."""
+
+
 def finish_execution(
     session: Session,
     execution: Execution,
@@ -44,13 +49,28 @@ def finish_execution(
     storage_path: str | None = None,
     error_message: str | None = None,
 ) -> None:
-    execution.status = status
-    execution.finished_at = _utcnow()
+    # UPDATE condicional: só sai de RUNNING. Se o reaper já marcou FAILED
+    # por timeout, estado terminal não volta atrás: o reaper vence.
+    values: dict = {"status": status, "finished_at": _utcnow()}
     if storage_path:
-        execution.storage_path = storage_path
+        values["storage_path"] = storage_path
     if error_message:
-        execution.error_message = error_message
+        values["error_message"] = error_message
+
+    result = session.execute(
+        update(Execution)
+        .where(Execution.id == execution.id, Execution.status == "RUNNING")
+        .values(**values)
+        .execution_options(synchronize_session=False)
+    )
+    if result.rowcount == 0:
+        # descarta o que estava pendente na transação (ex.: métricas da Gold)
+        session.rollback()
+        raise ExecutionAlreadyFinishedError(
+            f"Execution {execution.id} não está mais em RUNNING"
+        )
     session.commit()
+    session.refresh(execution)
 
 
 def create_execution_metrics(

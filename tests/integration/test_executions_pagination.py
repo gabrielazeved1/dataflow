@@ -1,9 +1,7 @@
 from datetime import datetime, timedelta, timezone
 
 import pytest
-
 from dataflow_common.models import Dataset, Execution
-
 
 SCHEMA = {"campos": [{"nome": "produto", "tipo": "string", "obrigatorio": True}]}
 
@@ -20,12 +18,14 @@ def dataset(db):
 def _seed(db, dataset_id, n):
     base = datetime(2026, 11, 1, tzinfo=timezone.utc)
     for i in range(n):
-        db.add(Execution(
-            dataset_id=dataset_id,
-            layer="BRONZE",
-            status="SUCCESS",
-            created_at=base + timedelta(seconds=i),
-        ))
+        db.add(
+            Execution(
+                dataset_id=dataset_id,
+                layer="BRONZE",
+                status="SUCCESS",
+                created_at=base + timedelta(seconds=i),
+            )
+        )
     db.commit()
 
 

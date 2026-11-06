@@ -7,8 +7,7 @@ apply_theme()
 
 st.title("DataFlow — Admin dashboard")
 
-st.markdown(
-    """
+st.markdown("""
     Dashboard operacional da plataforma **DataFlow**. Use a barra lateral
     para navegar entre as páginas:
 
@@ -16,5 +15,4 @@ st.markdown(
     - **Por dataset** — histórico de ingestões por dataset.
     - **Detalhe** — tudo sobre uma execução, incluindo preview de linhas
       rejeitadas.
-    """
-)
+    """)

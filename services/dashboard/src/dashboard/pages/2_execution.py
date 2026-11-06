@@ -1,6 +1,5 @@
 import pandas as pd
 import streamlit as st
-
 from dashboard.api_client import (
     get_execution,
     get_rejected_preview,

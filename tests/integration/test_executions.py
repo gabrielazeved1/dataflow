@@ -1,9 +1,7 @@
 from datetime import datetime, timezone
 
 import pytest
-
 from dataflow_common.models import Dataset, Execution, ExecutionMetrics
-
 
 SCHEMA = {"campos": [{"nome": "produto", "tipo": "string", "obrigatorio": True}]}
 
@@ -11,7 +9,7 @@ SCHEMA = {"campos": [{"nome": "produto", "tipo": "string", "obrigatorio": True}]
 @pytest.fixture
 def datasets(db):
     vendas = Dataset(nome="vendas", formato="csv", schema=SCHEMA)
-    estoque = Dataset(nome="estoque", formato="json", schema=SCHEMA)
+    estoque = Dataset(nome="estoque", formato="csv", schema=SCHEMA)
     db.add_all([vendas, estoque])
     db.commit()
     db.refresh(vendas)
@@ -37,6 +35,7 @@ def _make_execution(db, dataset_id, layer, status, created_at, **extra):
 
 # ----- GET /executions -----
 
+
 def test_list_executions_vazio(client):
     response = client.get("/executions/")
     assert response.status_code == 200
@@ -45,9 +44,15 @@ def test_list_executions_vazio(client):
 
 def test_list_executions_sem_filtros_ordenacao_desc(client, db, datasets):
     vendas, _ = datasets
-    _make_execution(db, vendas.id, "BRONZE", "SUCCESS", datetime(2026, 10, 15, tzinfo=timezone.utc))
-    _make_execution(db, vendas.id, "SILVER", "SUCCESS", datetime(2026, 11, 1, tzinfo=timezone.utc))
-    _make_execution(db, vendas.id, "GOLD", "SUCCESS", datetime(2026, 11, 2, tzinfo=timezone.utc))
+    _make_execution(
+        db, vendas.id, "BRONZE", "SUCCESS", datetime(2026, 10, 15, tzinfo=timezone.utc)
+    )
+    _make_execution(
+        db, vendas.id, "SILVER", "SUCCESS", datetime(2026, 11, 1, tzinfo=timezone.utc)
+    )
+    _make_execution(
+        db, vendas.id, "GOLD", "SUCCESS", datetime(2026, 11, 2, tzinfo=timezone.utc)
+    )
 
     response = client.get("/executions/")
 
@@ -59,8 +64,12 @@ def test_list_executions_sem_filtros_ordenacao_desc(client, db, datasets):
 
 def test_filtro_dataset_por_nome(client, db, datasets):
     vendas, estoque = datasets
-    _make_execution(db, vendas.id, "BRONZE", "SUCCESS", datetime(2026, 11, 1, tzinfo=timezone.utc))
-    _make_execution(db, estoque.id, "BRONZE", "SUCCESS", datetime(2026, 11, 1, tzinfo=timezone.utc))
+    _make_execution(
+        db, vendas.id, "BRONZE", "SUCCESS", datetime(2026, 11, 1, tzinfo=timezone.utc)
+    )
+    _make_execution(
+        db, estoque.id, "BRONZE", "SUCCESS", datetime(2026, 11, 1, tzinfo=timezone.utc)
+    )
 
     response = client.get("/executions/?dataset=vendas")
 
@@ -72,8 +81,12 @@ def test_filtro_dataset_por_nome(client, db, datasets):
 
 def test_filtro_status(client, db, datasets):
     vendas, _ = datasets
-    _make_execution(db, vendas.id, "BRONZE", "SUCCESS", datetime(2026, 11, 1, tzinfo=timezone.utc))
-    _make_execution(db, vendas.id, "BRONZE", "FAILED", datetime(2026, 11, 2, tzinfo=timezone.utc))
+    _make_execution(
+        db, vendas.id, "BRONZE", "SUCCESS", datetime(2026, 11, 1, tzinfo=timezone.utc)
+    )
+    _make_execution(
+        db, vendas.id, "BRONZE", "FAILED", datetime(2026, 11, 2, tzinfo=timezone.utc)
+    )
 
     response = client.get("/executions/?status=FAILED")
 
@@ -85,8 +98,12 @@ def test_filtro_status(client, db, datasets):
 
 def test_filtro_layer(client, db, datasets):
     vendas, _ = datasets
-    _make_execution(db, vendas.id, "BRONZE", "SUCCESS", datetime(2026, 11, 1, tzinfo=timezone.utc))
-    _make_execution(db, vendas.id, "SILVER", "SUCCESS", datetime(2026, 11, 2, tzinfo=timezone.utc))
+    _make_execution(
+        db, vendas.id, "BRONZE", "SUCCESS", datetime(2026, 11, 1, tzinfo=timezone.utc)
+    )
+    _make_execution(
+        db, vendas.id, "SILVER", "SUCCESS", datetime(2026, 11, 2, tzinfo=timezone.utc)
+    )
 
     response = client.get("/executions/?layer=SILVER")
 
@@ -98,10 +115,18 @@ def test_filtro_layer(client, db, datasets):
 
 def test_filtros_combinados(client, db, datasets):
     vendas, estoque = datasets
-    _make_execution(db, vendas.id, "BRONZE", "SUCCESS", datetime(2026, 11, 1, tzinfo=timezone.utc))
-    _make_execution(db, vendas.id, "BRONZE", "FAILED", datetime(2026, 11, 1, tzinfo=timezone.utc))
-    _make_execution(db, vendas.id, "SILVER", "SUCCESS", datetime(2026, 11, 1, tzinfo=timezone.utc))
-    _make_execution(db, estoque.id, "BRONZE", "SUCCESS", datetime(2026, 11, 1, tzinfo=timezone.utc))
+    _make_execution(
+        db, vendas.id, "BRONZE", "SUCCESS", datetime(2026, 11, 1, tzinfo=timezone.utc)
+    )
+    _make_execution(
+        db, vendas.id, "BRONZE", "FAILED", datetime(2026, 11, 1, tzinfo=timezone.utc)
+    )
+    _make_execution(
+        db, vendas.id, "SILVER", "SUCCESS", datetime(2026, 11, 1, tzinfo=timezone.utc)
+    )
+    _make_execution(
+        db, estoque.id, "BRONZE", "SUCCESS", datetime(2026, 11, 1, tzinfo=timezone.utc)
+    )
 
     response = client.get("/executions/?dataset=vendas&status=SUCCESS&layer=BRONZE")
 
@@ -115,10 +140,22 @@ def test_filtros_combinados(client, db, datasets):
 
 def test_filtro_intervalo_datas_inclusivo(client, db, datasets):
     vendas, _ = datasets
-    _make_execution(db, vendas.id, "BRONZE", "SUCCESS", datetime(2026, 10, 14, tzinfo=timezone.utc))
-    _make_execution(db, vendas.id, "BRONZE", "SUCCESS", datetime(2026, 10, 15, tzinfo=timezone.utc))
-    _make_execution(db, vendas.id, "BRONZE", "SUCCESS", datetime(2026, 10, 20, 23, 59, tzinfo=timezone.utc))
-    _make_execution(db, vendas.id, "BRONZE", "SUCCESS", datetime(2026, 10, 21, tzinfo=timezone.utc))
+    _make_execution(
+        db, vendas.id, "BRONZE", "SUCCESS", datetime(2026, 10, 14, tzinfo=timezone.utc)
+    )
+    _make_execution(
+        db, vendas.id, "BRONZE", "SUCCESS", datetime(2026, 10, 15, tzinfo=timezone.utc)
+    )
+    _make_execution(
+        db,
+        vendas.id,
+        "BRONZE",
+        "SUCCESS",
+        datetime(2026, 10, 20, 23, 59, tzinfo=timezone.utc),
+    )
+    _make_execution(
+        db, vendas.id, "BRONZE", "SUCCESS", datetime(2026, 10, 21, tzinfo=timezone.utc)
+    )
 
     response = client.get("/executions/?from=2026-10-15&to=2026-10-20")
 
@@ -129,7 +166,9 @@ def test_filtro_intervalo_datas_inclusivo(client, db, datasets):
 
 def test_dataset_inexistente_retorna_vazio(client, db, datasets):
     vendas, _ = datasets
-    _make_execution(db, vendas.id, "BRONZE", "SUCCESS", datetime(2026, 11, 1, tzinfo=timezone.utc))
+    _make_execution(
+        db, vendas.id, "BRONZE", "SUCCESS", datetime(2026, 11, 1, tzinfo=timezone.utc)
+    )
 
     response = client.get("/executions/?dataset=inexistente")
 
@@ -138,6 +177,7 @@ def test_dataset_inexistente_retorna_vazio(client, db, datasets):
 
 
 # ----- GET /executions/{id} -----
+
 
 def test_detail_bronze_metrics_null(client, db, datasets):
     vendas, _ = datasets
@@ -180,14 +220,16 @@ def test_detail_gold_com_metrics(client, db, datasets):
     gold = _make_execution(
         db, vendas.id, "GOLD", "SUCCESS", datetime(2026, 11, 1, tzinfo=timezone.utc)
     )
-    db.add(ExecutionMetrics(
-        gold_execution_id=gold.id,
-        valid_count=10,
-        rejected_count=2,
-        rejection_rate=0.1667,
-        duration_seconds=4.5,
-        corrupt_count=1,
-    ))
+    db.add(
+        ExecutionMetrics(
+            gold_execution_id=gold.id,
+            valid_count=10,
+            rejected_count=2,
+            rejection_rate=0.1667,
+            duration_seconds=4.5,
+            corrupt_count=1,
+        )
+    )
     db.commit()
 
     response = client.get(f"/executions/{gold.id}")

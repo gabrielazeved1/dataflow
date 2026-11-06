@@ -2,10 +2,8 @@ import sys
 from unittest.mock import patch
 
 import pytest
-
 from dataflow_common.models import Execution
 from dataflow_common.storage import build_silver_rejected_path
-
 from processing.bronze_to_silver import main
 
 
@@ -53,3 +51,40 @@ def test_idempotente_nao_duplica_silver(db, bronze_execution):
     silvers = db.query(Execution).filter(Execution.layer == "SILVER").all()
     assert len(silvers) == 1
     assert silvers[0].status == "SUCCESS"
+
+
+def test_run_unknown_execution_raises_precondition_error():
+    # run() é usado pela task Celery: não pode levantar SystemExit
+    from uuid import UUID
+
+    from processing.bronze_to_silver import run
+    from processing.errors import PreconditionError
+
+    with pytest.raises(PreconditionError):
+        run(UUID("00000000-0000-0000-0000-000000000000"))
+
+
+def test_falha_no_download_marca_silver_failed_e_permite_retry(db, bronze_execution):
+    # regressão: o download rodava fora do try e deixava a Silver RUNNING;
+    # com o índice de idempotência, o retry desistia em vez de reprocessar
+    from dataflow_common.storage import StorageUnavailableError
+    from processing.bronze_to_silver import run
+
+    with patch(
+        "processing.bronze_to_silver.download",
+        side_effect=StorageUnavailableError("minio fora"),
+    ):
+        with pytest.raises(StorageUnavailableError):
+            run(bronze_execution.id)
+
+    db.expire_all()
+    silvers = db.query(Execution).filter(Execution.layer == "SILVER").all()
+    assert [s.status for s in silvers] == ["FAILED"]
+
+    run(bronze_execution.id)  # retry: MinIO de volta
+
+    db.expire_all()
+    statuses = sorted(
+        s.status for s in db.query(Execution).filter(Execution.layer == "SILVER")
+    )
+    assert statuses == ["FAILED", "SUCCESS"]

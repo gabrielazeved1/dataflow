@@ -27,9 +27,7 @@ class DatasetSchema(BaseModel):
     @model_validator(mode="after")
     def nomes_de_campos_unicos(self) -> "DatasetSchema":
         nomes = [campo.nome for campo in self.campos]
-        duplicados = sorted(
-            nome for nome, count in Counter(nomes).items() if count > 1
-        )
+        duplicados = sorted(nome for nome, count in Counter(nomes).items() if count > 1)
         if duplicados:
             raise ValueError(f"nomes de campos duplicados: {duplicados}")
         return self
@@ -39,7 +37,9 @@ class DatasetCreate(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
     nome: str
-    formato: Literal["csv", "json"]
+    # só CSV por enquanto: o pipeline Spark lê apenas CSV. JSON Lines é V6
+    # (ver v5e.md, achado A1).
+    formato: Literal["csv"]
     # "schema" é reservado em Pydantic — usamos validation_alias para ler o JSON
     dataset_schema: DatasetSchema = Field(validation_alias="schema")
 

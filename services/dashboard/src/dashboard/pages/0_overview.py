@@ -2,10 +2,9 @@ from datetime import date, timedelta
 
 import pandas as pd
 import streamlit as st
-from streamlit_autorefresh import st_autorefresh
-
 from dashboard.api_client import list_datasets, list_executions
 from dashboard.styles import apply_theme
+from streamlit_autorefresh import st_autorefresh
 
 st.set_page_config(page_title="Overview — DataFlow", layout="wide")
 apply_theme()

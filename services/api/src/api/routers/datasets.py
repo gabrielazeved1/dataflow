@@ -1,10 +1,10 @@
 from uuid import UUID
 
+from dataflow_common.models import Dataset
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from api.database import get_db
-from dataflow_common.models import Dataset
 from api.schemas import DatasetCreate, DatasetResponse
 
 router = APIRouter(prefix="/datasets", tags=["datasets"])
@@ -16,10 +16,16 @@ def create_dataset(data: DatasetCreate, db: Session = Depends(get_db)):
     if db.query(Dataset).filter(Dataset.nome == data.nome).first():
         raise HTTPException(status_code=409, detail="Dataset já cadastrado")
 
-    dataset = Dataset(nome=data.nome, formato=data.formato, schema=data.dataset_schema.model_dump(exclude_none=True))
+    dataset = Dataset(
+        nome=data.nome,
+        formato=data.formato,
+        schema=data.dataset_schema.model_dump(exclude_none=True),
+    )
     db.add(dataset)
     db.commit()
-    db.refresh(dataset)  # atualiza o objeto com os valores gerados pelo banco (id, created_at)
+    db.refresh(
+        dataset
+    )  # atualiza o objeto com os valores gerados pelo banco (id, created_at)
     return dataset
 
 
