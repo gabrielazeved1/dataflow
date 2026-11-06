@@ -137,51 +137,83 @@ def test_ingest_dataset_not_found(client):
 VALID_CSV = b"data,produto,quantidade,valor_unitario\n2026-10-15,caneta,2,2.50"
 
 
-def _make_worker_mock(db, status: str = "SUCCESS"):
-    """Simula o worker: ao receber send_task, cria Silver + Gold com o status pedido."""
+def _add_child(db, parent, layer: str, status: str, created_at=None):
     from datetime import datetime, timezone
+
+    from dataflow_common.models import Execution
+
+    now = datetime.now(timezone.utc)
+    child = Execution(
+        dataset_id=parent.dataset_id,
+        input_execution_id=parent.id,
+        layer=layer,
+        status=status,
+        created_at=created_at or now,
+        started_at=now,
+        finished_at=now,
+        storage_path=f"{layer.lower()}/fake/{parent.id}.parquet" if status == "SUCCESS" else None,
+    )
+    db.add(child)
+    db.commit()
+    db.refresh(child)
+    return child
+
+
+def _make_worker_mock(db, fail_at: str | None = None, failed_silver_first: bool = False):
+    """Simula o worker: ao receber send_task, cria Silver (+ Gold) no banco.
+
+    fail_at=None     -> Silver SUCCESS, Gold SUCCESS (+ métricas)
+    fail_at="SILVER" -> Silver FAILED, sem Gold (como no pipeline real)
+    fail_at="GOLD"   -> Silver SUCCESS, Gold FAILED
+    failed_silver_first=True simula um retry: antes da Silver boa, uma
+    Silver FAILED mais antiga da primeira tentativa.
+    """
+    from datetime import datetime, timedelta, timezone
 
     from dataflow_common.models import Execution, ExecutionMetrics
 
     def fake_send_task(name, args, **kwargs):
-        bronze_id = args[0]
-        bronze = db.query(Execution).filter(Execution.id == bronze_id).first()
-        now = datetime.now(timezone.utc)
-        silver = Execution(
-            dataset_id=bronze.dataset_id,
-            input_execution_id=bronze.id,
-            layer="SILVER",
-            status=status,
-            started_at=now,
-            finished_at=now,
-            storage_path=f"silver/fake/{bronze.id}.parquet" if status == "SUCCESS" else None,
-        )
-        db.add(silver)
-        db.commit()
-        db.refresh(silver)
+        bronze = db.query(Execution).filter(Execution.id == args[0]).first()
+        if failed_silver_first:
+            earlier = datetime.now(timezone.utc) - timedelta(seconds=30)
+            _add_child(db, bronze, "SILVER", "FAILED", created_at=earlier)
 
-        gold = Execution(
-            dataset_id=bronze.dataset_id,
-            input_execution_id=silver.id,
-            layer="GOLD",
-            status=status,
-            started_at=now,
-            finished_at=now,
-            storage_path=f"gold/fake/{silver.id}.parquet" if status == "SUCCESS" else None,
-        )
-        db.add(gold)
-        db.commit()
-        db.refresh(gold)
+        if fail_at == "SILVER":
+            _add_child(db, bronze, "SILVER", "FAILED")
+            return
+        silver = _add_child(db, bronze, "SILVER", "SUCCESS")
 
-        if status == "SUCCESS":
-            db.add(ExecutionMetrics(
-                gold_execution_id=gold.id,
-                valid_count=1, rejected_count=0, rejection_rate=0.0,
-                duration_seconds=0.1, corrupt_count=0,
-            ))
-            db.commit()
+        if fail_at == "GOLD":
+            _add_child(db, silver, "GOLD", "FAILED")
+            return
+        gold = _add_child(db, silver, "GOLD", "SUCCESS")
+        db.add(ExecutionMetrics(
+            gold_execution_id=gold.id,
+            valid_count=1, rejected_count=0, rejection_rate=0.0,
+            duration_seconds=0.1, corrupt_count=0,
+        ))
+        db.commit()
 
     return fake_send_task
+
+
+def _post_sync(client, dataset_id, worker, grace=0, timeout=None):
+    patches = [
+        patch("api.services.ingest.celery_client.send_task", side_effect=worker),
+        patch("api.routers.ingestion._SYNC_FAILED_GRACE_SECONDS", grace),
+    ]
+    if timeout is not None:
+        patches.append(patch("api.routers.ingestion._SYNC_TIMEOUT_SECONDS", timeout))
+    for p in patches:
+        p.start()
+    try:
+        return client.post(
+            f"/datasets/{dataset_id}/ingest?mode=sync",
+            files={"file": ("vendas.csv", VALID_CSV, "text/csv")},
+        )
+    finally:
+        for p in patches:
+            p.stop()
 
 
 def test_ingest_default_eh_async(client):
@@ -217,12 +249,7 @@ def test_ingest_async_explicito(client):
 
 def test_ingest_sync_sucesso(client, db):
     dataset_id = _create_dataset(client, "vendas")
-    worker = _make_worker_mock(db, status="SUCCESS")
-    with patch("api.services.ingest.celery_client.send_task", side_effect=worker):
-        response = client.post(
-            f"/datasets/{dataset_id}/ingest?mode=sync",
-            files={"file": ("vendas.csv", VALID_CSV, "text/csv")},
-        )
+    response = _post_sync(client, dataset_id, _make_worker_mock(db))
 
     assert response.status_code == 200
     data = response.json()
@@ -230,19 +257,50 @@ def test_ingest_sync_sucesso(client, db):
     assert data["status"] == "SUCCESS"
 
 
-def test_ingest_sync_falha(client, db):
+def test_ingest_sync_falha_na_gold(client, db):
     dataset_id = _create_dataset(client, "vendas")
-    worker = _make_worker_mock(db, status="FAILED")
-    with patch("api.services.ingest.celery_client.send_task", side_effect=worker):
-        response = client.post(
-            f"/datasets/{dataset_id}/ingest?mode=sync",
-            files={"file": ("vendas.csv", VALID_CSV, "text/csv")},
-        )
+    response = _post_sync(client, dataset_id, _make_worker_mock(db, fail_at="GOLD"))
 
     assert response.status_code == 200
     data = response.json()
     assert data["layer"] == "GOLD"
     assert data["status"] == "FAILED"
+
+
+def test_ingest_sync_falha_na_silver_devolve_silver(client, db):
+    # antes: esperava uma Gold que nunca vinha e devolvia 504 após 300s
+    dataset_id = _create_dataset(client, "vendas")
+    response = _post_sync(
+        client, dataset_id, _make_worker_mock(db, fail_at="SILVER"), timeout=5
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["layer"] == "SILVER"
+    assert data["status"] == "FAILED"
+
+
+def test_ingest_sync_ignora_silver_failed_de_tentativa_anterior(client, db):
+    # antes: .first() sem ordenação pegava a Silver FAILED do 1º attempt
+    dataset_id = _create_dataset(client, "vendas")
+    worker = _make_worker_mock(db, failed_silver_first=True)
+    response = _post_sync(client, dataset_id, worker, timeout=5)
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["layer"] == "GOLD"
+    assert data["status"] == "SUCCESS"
+
+
+def test_ingest_sync_espera_janela_de_retry_antes_de_aceitar_failed(client, db):
+    # Silver acabou de falhar: pode haver retry vindo. Dentro da janela,
+    # o sync continua esperando (aqui, até estourar o timeout curto).
+    dataset_id = _create_dataset(client, "vendas")
+    response = _post_sync(
+        client, dataset_id, _make_worker_mock(db, fail_at="SILVER"), grace=90, timeout=1
+    )
+
+    assert response.status_code == 504
 
 
 def test_ingest_sync_timeout(client):
