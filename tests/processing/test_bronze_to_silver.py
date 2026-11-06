@@ -2,10 +2,8 @@ import sys
 from unittest.mock import patch
 
 import pytest
-
 from dataflow_common.models import Execution
 from dataflow_common.storage import build_silver_rejected_path
-
 from processing.bronze_to_silver import main
 
 
@@ -70,7 +68,6 @@ def test_falha_no_download_marca_silver_failed_e_permite_retry(db, bronze_execut
     # regressão: o download rodava fora do try e deixava a Silver RUNNING;
     # com o índice de idempotência, o retry desistia em vez de reprocessar
     from dataflow_common.storage import StorageUnavailableError
-
     from processing.bronze_to_silver import run
 
     with patch(

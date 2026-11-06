@@ -10,7 +10,8 @@ VENDAS_SCHEMA = {
 
 def test_create_dataset(client):
     response = client.post(
-        "/datasets/", json={"nome": "vendas_diarias", "formato": "csv", "schema": VENDAS_SCHEMA}
+        "/datasets/",
+        json={"nome": "vendas_diarias", "formato": "csv", "schema": VENDAS_SCHEMA},
     )
 
     assert response.status_code == 201
@@ -23,9 +24,13 @@ def test_create_dataset(client):
 
 
 def test_create_dataset_duplicate(client):
-    client.post("/datasets/", json={"nome": "vendas_diarias", "formato": "csv", "schema": VENDAS_SCHEMA})
+    client.post(
+        "/datasets/",
+        json={"nome": "vendas_diarias", "formato": "csv", "schema": VENDAS_SCHEMA},
+    )
     response = client.post(
-        "/datasets/", json={"nome": "vendas_diarias", "formato": "csv", "schema": VENDAS_SCHEMA}
+        "/datasets/",
+        json={"nome": "vendas_diarias", "formato": "csv", "schema": VENDAS_SCHEMA},
     )
 
     assert response.status_code == 409
@@ -52,7 +57,8 @@ def test_create_dataset_rejeita_campos_duplicados(client):
 
 def test_get_dataset(client):
     create = client.post(
-        "/datasets/", json={"nome": "vendas_diarias", "formato": "csv", "schema": VENDAS_SCHEMA}
+        "/datasets/",
+        json={"nome": "vendas_diarias", "formato": "csv", "schema": VENDAS_SCHEMA},
     )
     dataset_id = create.json()["id"]
 
@@ -76,8 +82,14 @@ def test_list_datasets_vazio(client):
 
 
 def test_list_datasets_ordem_mais_recente_primeiro(client):
-    client.post("/datasets/", json={"nome": "primeiro", "formato": "csv", "schema": VENDAS_SCHEMA})
-    client.post("/datasets/", json={"nome": "segundo", "formato": "csv", "schema": VENDAS_SCHEMA})
+    client.post(
+        "/datasets/",
+        json={"nome": "primeiro", "formato": "csv", "schema": VENDAS_SCHEMA},
+    )
+    client.post(
+        "/datasets/",
+        json={"nome": "segundo", "formato": "csv", "schema": VENDAS_SCHEMA},
+    )
 
     response = client.get("/datasets/")
 

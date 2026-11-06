@@ -1,9 +1,7 @@
 from datetime import datetime, timedelta, timezone
 
 from dataflow_common.models import Dataset, Execution
-
 from processing.tasks import reap_stuck_executions
-
 
 _SCHEMA = {"campos": [{"nome": "x", "tipo": "string", "obrigatorio": True}]}
 

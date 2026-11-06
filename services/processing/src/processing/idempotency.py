@@ -8,7 +8,9 @@ from sqlalchemy.orm import Session
 from processing.errors import ConcurrentExecutionError
 
 
-def _find_success_child(session: Session, parent_id: UUID, layer: str) -> Execution | None:
+def _find_success_child(
+    session: Session, parent_id: UUID, layer: str
+) -> Execution | None:
     return (
         session.query(Execution)
         .filter(

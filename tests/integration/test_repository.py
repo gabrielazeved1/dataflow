@@ -1,7 +1,6 @@
 import uuid
 
 import pytest
-
 from dataflow_common import repository
 from dataflow_common.models import Dataset, Execution
 
@@ -31,7 +30,9 @@ def test_get_dataset_returns_none_when_missing(db):
 
 
 def test_get_execution_returns_execution_when_found(db, sample_dataset):
-    execution = Execution(dataset_id=sample_dataset.id, layer="BRONZE", status="SUCCESS")
+    execution = Execution(
+        dataset_id=sample_dataset.id, layer="BRONZE", status="SUCCESS"
+    )
     db.add(execution)
     db.commit()
     db.refresh(execution)
@@ -45,7 +46,9 @@ def test_get_execution_returns_none_when_missing(db):
 
 
 def test_create_execution_starts_running(db, sample_dataset):
-    execution = repository.create_execution(db, dataset_id=sample_dataset.id, layer="SILVER")
+    execution = repository.create_execution(
+        db, dataset_id=sample_dataset.id, layer="SILVER"
+    )
     assert execution.status == "RUNNING"
     assert execution.layer == "SILVER"
     assert execution.started_at is not None
@@ -53,7 +56,9 @@ def test_create_execution_starts_running(db, sample_dataset):
 
 
 def test_create_execution_with_input_execution_id(db, sample_dataset):
-    bronze = repository.create_execution(db, dataset_id=sample_dataset.id, layer="BRONZE")
+    bronze = repository.create_execution(
+        db, dataset_id=sample_dataset.id, layer="BRONZE"
+    )
     silver = repository.create_execution(
         db,
         dataset_id=sample_dataset.id,
@@ -64,7 +69,9 @@ def test_create_execution_with_input_execution_id(db, sample_dataset):
 
 
 def test_finish_execution_success(db, sample_dataset):
-    execution = repository.create_execution(db, dataset_id=sample_dataset.id, layer="BRONZE")
+    execution = repository.create_execution(
+        db, dataset_id=sample_dataset.id, layer="BRONZE"
+    )
     repository.finish_execution(
         db, execution, status="SUCCESS", storage_path="bronze/foo/bar.csv"
     )
@@ -75,7 +82,9 @@ def test_finish_execution_success(db, sample_dataset):
 
 
 def test_finish_execution_failed(db, sample_dataset):
-    execution = repository.create_execution(db, dataset_id=sample_dataset.id, layer="BRONZE")
+    execution = repository.create_execution(
+        db, dataset_id=sample_dataset.id, layer="BRONZE"
+    )
     repository.finish_execution(db, execution, status="FAILED", error_message="boom")
     assert execution.status == "FAILED"
     assert execution.error_message == "boom"

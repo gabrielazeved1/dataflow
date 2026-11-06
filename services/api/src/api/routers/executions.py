@@ -6,6 +6,7 @@ from io import BytesIO
 from uuid import UUID
 
 import pyarrow.parquet as pq
+from dataflow_common.models import Dataset, Execution, ExecutionMetrics
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import tuple_
 from sqlalchemy.orm import Session
@@ -19,13 +20,14 @@ from api.schemas import (
     RejectedRowsResponse,
 )
 from api.storage import StorageUnavailableError, download_silver_rejected
-from dataflow_common.models import Dataset, Execution, ExecutionMetrics
 
 router = APIRouter(prefix="/executions", tags=["executions"])
 
 
 def _encode_cursor(created_at: datetime, execution_id: UUID) -> str:
-    payload = json.dumps({"created_at": created_at.isoformat(), "id": str(execution_id)})
+    payload = json.dumps(
+        {"created_at": created_at.isoformat(), "id": str(execution_id)}
+    )
     return base64.urlsafe_b64encode(payload.encode()).decode()
 
 
@@ -33,7 +35,13 @@ def _decode_cursor(cursor: str) -> tuple[datetime, UUID]:
     try:
         payload = json.loads(base64.urlsafe_b64decode(cursor.encode()).decode())
         return datetime.fromisoformat(payload["created_at"]), UUID(payload["id"])
-    except (binascii.Error, ValueError, KeyError, UnicodeDecodeError, json.JSONDecodeError):
+    except (
+        binascii.Error,
+        ValueError,
+        KeyError,
+        UnicodeDecodeError,
+        json.JSONDecodeError,
+    ):
         raise HTTPException(status_code=400, detail="cursor inválido")
 
 
@@ -43,7 +51,9 @@ def list_executions(
     dataset: str | None = Query(None, description="Nome do dataset"),
     status: str | None = Query(None, description="RUNNING | SUCCESS | FAILED"),
     layer: str | None = Query(None, description="BRONZE | SILVER | GOLD"),
-    from_: date | None = Query(None, alias="from", description="Data inicial (YYYY-MM-DD, inclusivo)"),
+    from_: date | None = Query(
+        None, alias="from", description="Data inicial (YYYY-MM-DD, inclusivo)"
+    ),
     to: date | None = Query(None, description="Data final (YYYY-MM-DD, inclusivo)"),
     limit: int = Query(50, ge=1, le=200),
     after: str | None = Query(None, description="Cursor opaco pra próxima página"),
@@ -79,7 +89,9 @@ def list_executions(
 
     has_next = len(rows) > limit
     items = rows[:limit]
-    next_cursor = _encode_cursor(items[-1].created_at, items[-1].id) if has_next else None
+    next_cursor = (
+        _encode_cursor(items[-1].created_at, items[-1].id) if has_next else None
+    )
     return ExecutionListResponse(
         items=[ExecutionListItem.model_validate(e) for e in items],
         next_cursor=next_cursor,
@@ -99,7 +111,9 @@ def get_rejected_preview(
     if execution.layer != "SILVER":
         raise HTTPException(status_code=400, detail="Execution precisa ser SILVER")
     if execution.status != "SUCCESS":
-        raise HTTPException(status_code=400, detail="Execution SILVER precisa estar SUCCESS")
+        raise HTTPException(
+            status_code=400, detail="Execution SILVER precisa estar SUCCESS"
+        )
     if execution.storage_path is None:
         raise HTTPException(status_code=400, detail="Execution sem storage_path")
 

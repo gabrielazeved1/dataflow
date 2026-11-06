@@ -5,10 +5,6 @@ from operator import and_
 from pathlib import Path
 from uuid import UUID
 
-from pyspark.sql import Column, DataFrame
-from pyspark.sql.functions import col
-from pyspark.sql.types import StringType, StructField, StructType
-
 from dataflow_common.repository import (
     ExecutionAlreadyFinishedError,
     finish_execution,
@@ -21,11 +17,14 @@ from dataflow_common.storage import (
     download,
     upload,
 )
+from pyspark.sql import Column, DataFrame
+from pyspark.sql.functions import col
+from pyspark.sql.types import StringType, StructField, StructType
 
 from processing.config import settings
+from processing.database import SessionLocal
 from processing.errors import PreconditionError
 from processing.idempotency import start_child_execution
-from processing.database import SessionLocal
 from processing.schema_mapper import build_struct_type
 from processing.spark import build_spark
 
@@ -57,7 +56,8 @@ def run(bronze_execution_id: UUID) -> UUID:
             raise PreconditionError(f"Execution {bronze_execution_id} nao encontrada")
         if bronze_exec.layer != "BRONZE":
             raise PreconditionError(
-                f"Execution {bronze_execution_id} e {bronze_exec.layer}, esperava BRONZE"
+                f"Execution {bronze_execution_id} e {bronze_exec.layer}, "
+                "esperava BRONZE"
             )
         if bronze_exec.storage_path is None:
             raise PreconditionError(f"Execution {bronze_execution_id} sem storage_path")
@@ -69,7 +69,9 @@ def run(bronze_execution_id: UUID) -> UUID:
         print(f"[Bronze] execution={bronze_exec.id}")
         print(f"         storage_path={bronze_exec.storage_path}")
         print(f"         file_name={bronze_exec.file_name}")
-        print(f"[Dataset] id={dataset.id} nome={dataset.nome} formato={dataset.formato}")
+        print(
+            f"[Dataset] id={dataset.id} nome={dataset.nome} formato={dataset.formato}"
+        )
         print(f"          campos={[c['nome'] for c in dataset.schema['campos']]}")
 
         silver_exec, created = start_child_execution(
@@ -101,7 +103,8 @@ def run(bronze_execution_id: UUID) -> UUID:
 
             base_struct = build_struct_type(dataset.schema)
             read_struct = StructType(
-                base_struct.fields + [StructField("_corrupt_record", StringType(), True)]
+                base_struct.fields
+                + [StructField("_corrupt_record", StringType(), True)]
             )
             spark = build_spark(f"bronze_to_silver:{silver_exec.id}")
             df = spark.read.csv(
@@ -118,7 +121,9 @@ def run(bronze_execution_id: UUID) -> UUID:
             valid_count = valid_df.count()
             rejected_count = rejected_df.count()
 
-            print(f"[Split] total={total} valid={valid_count} rejected={rejected_count}")
+            print(
+                f"[Split] total={total} valid={valid_count} rejected={rejected_count}"
+            )
             if rejected_count > 0:
                 print("[Rejected] amostras:")
                 rejected_df.show(5, truncate=False)
@@ -158,7 +163,7 @@ def run(bronze_execution_id: UUID) -> UUID:
             print(f"[Upload] rejected -> {rejected_key}")
 
             finish_execution(session, silver_exec, "SUCCESS", storage_path=silver_key)
-            print(f"[Done] status=SUCCESS")
+            print("[Done] status=SUCCESS")
             return silver_exec.id
         except ExecutionAlreadyFinishedError:
             # reaper já marcou FAILED; não há o que gravar

@@ -1,12 +1,12 @@
 import hashlib
 from datetime import datetime, timezone
 
+from dataflow_common.models import Dataset, Execution
 from sqlalchemy.orm import Session
 
 from api.celery_client import celery_client
 from api.config import settings
 from api.storage import StorageUnavailableError, upload_bronze
-from dataflow_common.models import Dataset, Execution
 
 
 def ingest_bytes(

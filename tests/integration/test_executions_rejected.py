@@ -4,7 +4,6 @@ from io import BytesIO
 import pyarrow as pa
 import pyarrow.parquet as pq
 import pytest
-
 from dataflow_common.models import Dataset, Execution
 from dataflow_common.storage import build_silver_rejected_path
 
@@ -52,14 +51,18 @@ def test_rejected_execution_nao_existe(client):
 
 
 def test_rejected_execution_nao_silver(client, db, dataset):
-    bronze = _make_execution(db, dataset.id, "BRONZE", "SUCCESS", storage_path="bronze/x")
+    bronze = _make_execution(
+        db, dataset.id, "BRONZE", "SUCCESS", storage_path="bronze/x"
+    )
     response = client.get(f"/executions/{bronze.id}/rejected")
     assert response.status_code == 400
     assert "SILVER" in response.json()["detail"]
 
 
 def test_rejected_silver_failed(client, db, dataset):
-    silver = _make_execution(db, dataset.id, "SILVER", "FAILED", storage_path="silver/x")
+    silver = _make_execution(
+        db, dataset.id, "SILVER", "FAILED", storage_path="silver/x"
+    )
     response = client.get(f"/executions/{silver.id}/rejected")
     assert response.status_code == 400
     assert "SUCCESS" in response.json()["detail"]
@@ -74,7 +77,11 @@ def test_rejected_silver_sem_storage_path(client, db, dataset):
 
 def test_rejected_happy_path(client, db, dataset, minio_client):
     silver = _make_execution(
-        db, dataset.id, "SILVER", "SUCCESS", storage_path="silver/vendas/dt=2026-11-01/x.parquet"
+        db,
+        dataset.id,
+        "SILVER",
+        "SUCCESS",
+        storage_path="silver/vendas/dt=2026-11-01/x.parquet",
     )
     _upload_rejected_parquet(
         minio_client,

@@ -10,8 +10,8 @@ from sqlalchemy.orm import aliased
 from processing.bronze_to_silver import run as _run_bronze_to_silver
 from processing.celery_app import celery_app
 from processing.config import settings
-from processing.errors import ConcurrentExecutionError
 from processing.database import SessionLocal
+from processing.errors import ConcurrentExecutionError
 from processing.silver_to_gold import run as _run_silver_to_gold
 
 
@@ -88,7 +88,10 @@ def find_bronzes_to_reconcile(session, now: datetime) -> list[UUID]:
             blocking.status.in_(["RUNNING", "SUCCESS"]),
             and_(
                 blocking.status == "FAILED",
-                or_(blocking.error_message.is_(None), blocking.error_message != "timeout"),
+                or_(
+                    blocking.error_message.is_(None),
+                    blocking.error_message != "timeout",
+                ),
             ),
         ),
     )
@@ -103,8 +106,10 @@ def find_bronzes_to_reconcile(session, now: datetime) -> list[UUID]:
         .filter(
             Execution.layer == "BRONZE",
             Execution.status == "SUCCESS",
-            Execution.finished_at < now - timedelta(minutes=settings.reconcile_after_minutes),
-            Execution.finished_at > now - timedelta(hours=settings.reconcile_max_age_hours),
+            Execution.finished_at
+            < now - timedelta(minutes=settings.reconcile_after_minutes),
+            Execution.finished_at
+            > now - timedelta(hours=settings.reconcile_max_age_hours),
             ~has_blocking_silver,
             attempts < settings.reconcile_max_attempts,
         )

@@ -3,13 +3,12 @@ from unittest.mock import patch
 
 import boto3
 import pytest
-from fastapi.testclient import TestClient
-from sqlalchemy import create_engine, text
-from sqlalchemy.orm import sessionmaker
-
 from api.config import settings
 from api.database import get_db
 from api.main import app
+from fastapi.testclient import TestClient
+from sqlalchemy import create_engine, text
+from sqlalchemy.orm import sessionmaker
 
 settings.minio_endpoint = "localhost:9000"
 

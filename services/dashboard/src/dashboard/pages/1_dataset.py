@@ -1,6 +1,5 @@
 import pandas as pd
 import streamlit as st
-
 from dashboard.api_client import get_execution, list_datasets, list_executions
 from dashboard.styles import apply_theme
 

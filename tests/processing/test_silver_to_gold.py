@@ -4,10 +4,7 @@ from unittest.mock import patch
 
 import pyarrow.parquet as pq
 import pytest
-
 from dataflow_common.models import Execution, ExecutionMetrics
-from dataflow_common.storage import build_gold_path
-
 from processing.silver_to_gold import main
 
 
@@ -96,9 +93,10 @@ def test_idempotente_nao_duplica_gold(db, silver_execution):
     assert golds[0].status == "SUCCESS"
 
 
-def test_run_silver_not_success_raises_precondition_error(db, bronze_execution_with_nulls):
+def test_run_silver_not_success_raises_precondition_error(
+    db, bronze_execution_with_nulls
+):
     from dataflow_common.repository import create_execution
-
     from processing.errors import PreconditionError
     from processing.silver_to_gold import run
 
@@ -117,7 +115,6 @@ def test_falha_no_download_marca_gold_failed(db, silver_execution):
 
     from dataflow_common.models import Execution
     from dataflow_common.storage import StorageUnavailableError
-
     from processing.silver_to_gold import run
 
     with patch(

@@ -25,8 +25,9 @@ def test_database():
     O schema vem do `alembic upgrade head`, não do create_all(): assim uma
     migration quebrada ou divergente do model quebra a suíte.
     """
-    from alembic import command
     from alembic.config import Config
+
+    from alembic import command
 
     # CREATE DATABASE não roda dentro de transação: AUTOCOMMIT no banco admin
     admin = create_engine(f"{_PG}/postgres", isolation_level="AUTOCOMMIT")

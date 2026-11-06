@@ -8,6 +8,7 @@ Revises: bec933f66ff0
 Create Date: 2026-11-06 00:00:00
 
 """
+
 from typing import Sequence, Union
 
 from alembic import op
@@ -21,13 +22,11 @@ depends_on: Union[str, Sequence[str], None] = None
 def upgrade() -> None:
     # IF NOT EXISTS: bancos de dev criados antes da V5e por create_all()
     # (testes antigos rodavam no banco do compose) ja podem ter o indice.
-    op.execute(
-        """
+    op.execute("""
         CREATE UNIQUE INDEX IF NOT EXISTS uq_execution_child_active
         ON execution (input_execution_id, layer)
         WHERE status IN ('RUNNING', 'SUCCESS')
-        """
-    )
+        """)
 
 
 def downgrade() -> None:

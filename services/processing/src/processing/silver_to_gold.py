@@ -3,12 +3,9 @@ from datetime import datetime, timezone
 from pathlib import Path
 from uuid import UUID
 
-from pyspark.sql import Row
-from pyspark.sql.functions import col
-
 from dataflow_common.repository import (
-    create_execution_metrics,
     ExecutionAlreadyFinishedError,
+    create_execution_metrics,
     finish_execution,
     get_dataset,
     get_execution,
@@ -19,11 +16,13 @@ from dataflow_common.storage import (
     download,
     upload,
 )
+from pyspark.sql import Row
+from pyspark.sql.functions import col
 
 from processing.config import settings
+from processing.database import SessionLocal
 from processing.errors import PreconditionError
 from processing.idempotency import start_child_execution
-from processing.database import SessionLocal
 from processing.spark import build_spark
 
 
@@ -34,11 +33,13 @@ def run(silver_execution_id: UUID) -> UUID:
             raise PreconditionError(f"Execution {silver_execution_id} nao encontrada")
         if silver_exec.layer != "SILVER":
             raise PreconditionError(
-                f"Execution {silver_execution_id} e {silver_exec.layer}, esperava SILVER"
+                f"Execution {silver_execution_id} e {silver_exec.layer}, "
+                "esperava SILVER"
             )
         if silver_exec.status != "SUCCESS":
             raise PreconditionError(
-                f"Execution {silver_execution_id} status={silver_exec.status}, esperava SUCCESS"
+                f"Execution {silver_execution_id} status={silver_exec.status}, "
+                "esperava SUCCESS"
             )
         if silver_exec.storage_path is None:
             raise PreconditionError(f"Execution {silver_execution_id} sem storage_path")
@@ -95,7 +96,9 @@ def run(silver_execution_id: UUID) -> UUID:
             rejected_local.write_bytes(rejected_bytes)
 
             print(f"[Download] valid    {len(valid_bytes)} bytes -> {valid_local}")
-            print(f"[Download] rejected {len(rejected_bytes)} bytes -> {rejected_local}")
+            print(
+                f"[Download] rejected {len(rejected_bytes)} bytes -> {rejected_local}"
+            )
 
             spark = build_spark(f"silver_to_gold:{gold_exec.id}")
             valid_df = spark.read.parquet(str(valid_local))
@@ -105,7 +108,9 @@ def run(silver_execution_id: UUID) -> UUID:
             rejected_count = rejected_df.count()
             total = valid_count + rejected_count
             rejection_rate = rejected_count / total if total > 0 else 0.0
-            corrupt_count = rejected_df.filter(col("_corrupt_record").isNotNull()).count()
+            corrupt_count = rejected_df.filter(
+                col("_corrupt_record").isNotNull()
+            ).count()
             duration_seconds = (
                 silver_exec.finished_at - silver_exec.started_at
             ).total_seconds()
@@ -118,19 +123,21 @@ def run(silver_execution_id: UUID) -> UUID:
 
             dt = datetime.now(timezone.utc).strftime("%Y-%m-%d")
 
-            gold_df = spark.createDataFrame([
-                Row(
-                    execution_id=str(gold_exec.id),
-                    silver_execution_id=str(silver_exec.id),
-                    dataset_nome=dataset.nome,
-                    dt=dt,
-                    valid_count=valid_count,
-                    rejected_count=rejected_count,
-                    rejection_rate=rejection_rate,
-                    corrupt_count=corrupt_count,
-                    duration_seconds=duration_seconds,
-                )
-            ])
+            gold_df = spark.createDataFrame(
+                [
+                    Row(
+                        execution_id=str(gold_exec.id),
+                        silver_execution_id=str(silver_exec.id),
+                        dataset_nome=dataset.nome,
+                        dt=dt,
+                        valid_count=valid_count,
+                        rejected_count=rejected_count,
+                        rejection_rate=rejection_rate,
+                        corrupt_count=corrupt_count,
+                        duration_seconds=duration_seconds,
+                    )
+                ]
+            )
 
             gold_local = Path("/tmp") / f"{gold_exec.id}_gold"
             gold_df.coalesce(1).write.parquet(str(gold_local))
@@ -158,10 +165,10 @@ def run(silver_execution_id: UUID) -> UUID:
                 duration_seconds=duration_seconds,
                 corrupt_count=corrupt_count,
             )
-            print(f"[Metrics] persisted in execution_metrics")
+            print("[Metrics] persisted in execution_metrics")
 
             finish_execution(session, gold_exec, "SUCCESS", storage_path=gold_key)
-            print(f"[Done] status=SUCCESS")
+            print("[Done] status=SUCCESS")
             return gold_exec.id
         except ExecutionAlreadyFinishedError:
             # reaper já marcou FAILED; não há o que gravar

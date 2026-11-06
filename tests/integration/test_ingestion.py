@@ -2,7 +2,6 @@ from unittest.mock import patch
 
 from dataflow_common.storage import StorageUnavailableError
 
-
 VENDAS_SCHEMA = {
     "campos": [
         {"nome": "data", "tipo": "date", "obrigatorio": True},
@@ -57,7 +56,8 @@ def test_ingest_file_exists_in_minio(client, minio_client):
 
 def test_create_dataset_json_rejected(client):
     response = client.post(
-        "/datasets/", json={"nome": "eventos", "formato": "json", "schema": VENDAS_SCHEMA}
+        "/datasets/",
+        json={"nome": "eventos", "formato": "json", "schema": VENDAS_SCHEMA},
     )
 
     assert response.status_code == 422
@@ -99,7 +99,10 @@ def test_ingest_legacy_json_dataset_fails(client, db):
 
 def test_ingest_minio_unavailable_returns_503(client):
     dataset_id = _create_dataset(client, "vendas")
-    with patch("api.services.ingest.upload_bronze", side_effect=StorageUnavailableError("timeout")):
+    with patch(
+        "api.services.ingest.upload_bronze",
+        side_effect=StorageUnavailableError("timeout"),
+    ):
         response = client.post(
             f"/datasets/{dataset_id}/ingest",
             files={"file": ("vendas.csv", b"data,valor\n1,100", "text/csv")},
@@ -112,7 +115,10 @@ def test_ingest_minio_unavailable_registers_failed(client, db):
     from dataflow_common.models import Execution
 
     dataset_id = _create_dataset(client, "vendas")
-    with patch("api.services.ingest.upload_bronze", side_effect=StorageUnavailableError("timeout")):
+    with patch(
+        "api.services.ingest.upload_bronze",
+        side_effect=StorageUnavailableError("timeout"),
+    ):
         client.post(
             f"/datasets/{dataset_id}/ingest",
             files={"file": ("vendas.csv", b"data,valor\n1,100", "text/csv")},
@@ -132,7 +138,7 @@ def test_ingest_dataset_not_found(client):
     assert response.status_code == 404
 
 
-#  modo sync / async + Celery 
+#  modo sync / async + Celery
 
 VALID_CSV = b"data,produto,quantidade,valor_unitario\n2026-10-15,caneta,2,2.50"
 
@@ -151,7 +157,9 @@ def _add_child(db, parent, layer: str, status: str, created_at=None):
         created_at=created_at or now,
         started_at=now,
         finished_at=now,
-        storage_path=f"{layer.lower()}/fake/{parent.id}.parquet" if status == "SUCCESS" else None,
+        storage_path=(
+            f"{layer.lower()}/fake/{parent.id}.parquet" if status == "SUCCESS" else None
+        ),
     )
     db.add(child)
     db.commit()
@@ -159,7 +167,9 @@ def _add_child(db, parent, layer: str, status: str, created_at=None):
     return child
 
 
-def _make_worker_mock(db, fail_at: str | None = None, failed_silver_first: bool = False):
+def _make_worker_mock(
+    db, fail_at: str | None = None, failed_silver_first: bool = False
+):
     """Simula o worker: ao receber send_task, cria Silver (+ Gold) no banco.
 
     fail_at=None     -> Silver SUCCESS, Gold SUCCESS (+ métricas)
@@ -187,11 +197,16 @@ def _make_worker_mock(db, fail_at: str | None = None, failed_silver_first: bool 
             _add_child(db, silver, "GOLD", "FAILED")
             return
         gold = _add_child(db, silver, "GOLD", "SUCCESS")
-        db.add(ExecutionMetrics(
-            gold_execution_id=gold.id,
-            valid_count=1, rejected_count=0, rejection_rate=0.0,
-            duration_seconds=0.1, corrupt_count=0,
-        ))
+        db.add(
+            ExecutionMetrics(
+                gold_execution_id=gold.id,
+                valid_count=1,
+                rejected_count=0,
+                rejection_rate=0.0,
+                duration_seconds=0.1,
+                corrupt_count=0,
+            )
+        )
         db.commit()
 
     return fake_send_task
@@ -305,8 +320,10 @@ def test_ingest_sync_espera_janela_de_retry_antes_de_aceitar_failed(client, db):
 
 def test_ingest_sync_timeout(client):
     dataset_id = _create_dataset(client, "vendas")
-    with patch("api.services.ingest.celery_client.send_task"), \
-         patch("api.routers.ingestion._SYNC_TIMEOUT_SECONDS", 1):
+    with (
+        patch("api.services.ingest.celery_client.send_task"),
+        patch("api.routers.ingestion._SYNC_TIMEOUT_SECONDS", 1),
+    ):
         response = client.post(
             f"/datasets/{dataset_id}/ingest?mode=sync",
             files={"file": ("vendas.csv", VALID_CSV, "text/csv")},

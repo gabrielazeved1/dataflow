@@ -2,10 +2,9 @@ from unittest.mock import patch
 from uuid import uuid4
 
 import pytest
-from sqlalchemy.exc import OperationalError
-
 from processing import tasks
 from processing.celery_app import celery_app
+from sqlalchemy.exc import OperationalError
 
 
 @pytest.fixture
@@ -20,7 +19,9 @@ def celery_eager_fast(monkeypatch):
     yield
 
 
-def test_ingest_retenta_em_operational_error_e_eventualmente_succeeds(celery_eager_fast):
+def test_ingest_retenta_em_operational_error_e_eventualmente_succeeds(
+    celery_eager_fast,
+):
     bronze_id = uuid4()
     silver_id = uuid4()
     gold_id = uuid4()
@@ -32,7 +33,9 @@ def test_ingest_retenta_em_operational_error_e_eventualmente_succeeds(celery_eag
     ]
 
     with (
-        patch.object(tasks, "_run_bronze_to_silver", side_effect=bronze_side_effects) as mock_bronze,
+        patch.object(
+            tasks, "_run_bronze_to_silver", side_effect=bronze_side_effects
+        ) as mock_bronze,
         patch.object(tasks, "_run_silver_to_gold", return_value=gold_id) as mock_gold,
     ):
         result = tasks.ingest.apply(args=[str(bronze_id)])

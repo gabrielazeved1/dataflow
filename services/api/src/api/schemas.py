@@ -27,9 +27,7 @@ class DatasetSchema(BaseModel):
     @model_validator(mode="after")
     def nomes_de_campos_unicos(self) -> "DatasetSchema":
         nomes = [campo.nome for campo in self.campos]
-        duplicados = sorted(
-            nome for nome, count in Counter(nomes).items() if count > 1
-        )
+        duplicados = sorted(nome for nome, count in Counter(nomes).items() if count > 1)
         if duplicados:
             raise ValueError(f"nomes de campos duplicados: {duplicados}")
         return self

@@ -7,12 +7,11 @@ os.environ.setdefault("MINIO_BUCKET", "dataflow")
 
 import boto3
 import pytest
-from sqlalchemy import create_engine, text
-from sqlalchemy.orm import sessionmaker
-
 from dataflow_common.models import Dataset
 from dataflow_common.repository import create_execution, finish_execution
 from dataflow_common.storage import build_bronze_path, upload
+from sqlalchemy import create_engine, text
+from sqlalchemy.orm import sessionmaker
 
 # definido pelo tests/conftest.py (banco dataflow_test)
 _DB_URL = os.environ["POSTGRES_DSN"]

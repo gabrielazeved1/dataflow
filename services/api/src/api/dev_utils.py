@@ -5,7 +5,6 @@ import string
 from datetime import date, timedelta
 from typing import Any
 
-
 _DATE_START = date(2020, 1, 1)
 _DATE_END = date(2026, 12, 31)
 _DEFAULT_NUM_MIN = 0

@@ -3,14 +3,14 @@ from datetime import datetime, timezone
 from typing import Literal
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Response, UploadFile, File
+from dataflow_common.models import Dataset, Execution
+from fastapi import APIRouter, Depends, File, HTTPException, Query, Response, UploadFile
 from sqlalchemy.orm import Session
 
 from api.database import get_db
 from api.schemas import ExecutionResponse
 from api.services.ingest import ingest_bytes
 from api.storage import StorageUnavailableError
-from dataflow_common.models import Dataset, Execution
 
 router = APIRouter(prefix="/datasets", tags=["ingestion"])
 
@@ -86,7 +86,9 @@ def ingest(
     try:
         execution = ingest_bytes(db, dataset, file.filename, content)
     except StorageUnavailableError:
-        raise HTTPException(status_code=503, detail="Storage indisponível, tente novamente")
+        raise HTTPException(
+            status_code=503, detail="Storage indisponível, tente novamente"
+        )
 
     if mode == "async" or execution.status == "FAILED":
         return execution

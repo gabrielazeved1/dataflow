@@ -1,9 +1,8 @@
 import pytest
-from sqlalchemy.exc import IntegrityError
-
 from dataflow_common.models import Dataset, Execution
 from processing.errors import ConcurrentExecutionError
 from processing.idempotency import start_child_execution
+from sqlalchemy.exc import IntegrityError
 
 _SCHEMA = {"campos": [{"nome": "x", "tipo": "string", "obrigatorio": True}]}
 

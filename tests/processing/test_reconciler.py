@@ -2,7 +2,6 @@ from datetime import datetime, timedelta, timezone
 from unittest.mock import patch
 
 import pytest
-
 from dataflow_common.models import Dataset, Execution
 from processing import tasks
 from processing.tasks import find_bronzes_to_reconcile
