@@ -81,25 +81,29 @@ def run(bronze_execution_id: UUID) -> UUID:
 
         print(f"[Silver] execution={silver_exec.id} status={silver_exec.status}")
 
-        bronze_bytes = download(
-            bucket=settings.minio_bucket,
-            key=bronze_exec.storage_path,
-            endpoint=settings.minio_endpoint,
-            access_key=settings.minio_access_key,
-            secret_key=settings.minio_secret_key,
-        )
-
-        local_path = Path("/tmp") / f"{silver_exec.id}.csv"
-        local_path.write_bytes(bronze_bytes)
-
-        print(f"[Download] {len(bronze_bytes)} bytes -> {local_path}")
-
-        base_struct = build_struct_type(dataset.schema)
-        read_struct = StructType(
-            base_struct.fields + [StructField("_corrupt_record", StringType(), True)]
-        )
-        spark = build_spark(f"bronze_to_silver:{silver_exec.id}")
+        # tudo depois de criar a filha RUNNING fica dentro do try: se falhar
+        # fora dele (download, boot da JVM), a filha fica RUNNING, o índice
+        # de idempotência bloqueia o retry e a task desiste sem processar.
+        spark = None
         try:
+            bronze_bytes = download(
+                bucket=settings.minio_bucket,
+                key=bronze_exec.storage_path,
+                endpoint=settings.minio_endpoint,
+                access_key=settings.minio_access_key,
+                secret_key=settings.minio_secret_key,
+            )
+
+            local_path = Path("/tmp") / f"{silver_exec.id}.csv"
+            local_path.write_bytes(bronze_bytes)
+
+            print(f"[Download] {len(bronze_bytes)} bytes -> {local_path}")
+
+            base_struct = build_struct_type(dataset.schema)
+            read_struct = StructType(
+                base_struct.fields + [StructField("_corrupt_record", StringType(), True)]
+            )
+            spark = build_spark(f"bronze_to_silver:{silver_exec.id}")
             df = spark.read.csv(
                 str(local_path),
                 header=True,
@@ -164,7 +168,8 @@ def run(bronze_execution_id: UUID) -> UUID:
             print(f"[Error] {exc}")
             raise
         finally:
-            spark.stop()
+            if spark is not None:
+                spark.stop()
 
 
 def main() -> None:

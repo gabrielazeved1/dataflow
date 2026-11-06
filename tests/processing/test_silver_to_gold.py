@@ -110,3 +110,23 @@ def test_run_silver_not_success_raises_precondition_error(db, bronze_execution_w
     )
     with pytest.raises(PreconditionError):
         run(silver.id)
+
+
+def test_falha_no_download_marca_gold_failed(db, silver_execution):
+    from unittest.mock import patch
+
+    from dataflow_common.models import Execution
+    from dataflow_common.storage import StorageUnavailableError
+
+    from processing.silver_to_gold import run
+
+    with patch(
+        "processing.silver_to_gold.download",
+        side_effect=StorageUnavailableError("minio fora"),
+    ):
+        with pytest.raises(StorageUnavailableError):
+            run(silver_execution.id)
+
+    db.expire_all()
+    golds = db.query(Execution).filter(Execution.layer == "GOLD").all()
+    assert [g.status for g in golds] == ["FAILED"]

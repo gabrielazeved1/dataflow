@@ -66,34 +66,38 @@ def run(silver_execution_id: UUID) -> UUID:
 
         print(f"[Gold] execution={gold_exec.id} status={gold_exec.status}")
 
-        valid_key = silver_exec.storage_path
-        rejected_key = build_silver_rejected_path(dataset.nome, silver_exec.id)
-
-        valid_bytes = download(
-            bucket=settings.minio_bucket,
-            key=valid_key,
-            endpoint=settings.minio_endpoint,
-            access_key=settings.minio_access_key,
-            secret_key=settings.minio_secret_key,
-        )
-        rejected_bytes = download(
-            bucket=settings.minio_bucket,
-            key=rejected_key,
-            endpoint=settings.minio_endpoint,
-            access_key=settings.minio_access_key,
-            secret_key=settings.minio_secret_key,
-        )
-
-        valid_local = Path("/tmp") / f"{gold_exec.id}_valid.parquet"
-        rejected_local = Path("/tmp") / f"{gold_exec.id}_rejected.parquet"
-        valid_local.write_bytes(valid_bytes)
-        rejected_local.write_bytes(rejected_bytes)
-
-        print(f"[Download] valid    {len(valid_bytes)} bytes -> {valid_local}")
-        print(f"[Download] rejected {len(rejected_bytes)} bytes -> {rejected_local}")
-
-        spark = build_spark(f"silver_to_gold:{gold_exec.id}")
+        # tudo depois de criar a filha RUNNING fica dentro do try: se falhar
+        # fora dele (download, boot da JVM), a filha fica RUNNING, o índice
+        # de idempotência bloqueia o retry e a task desiste sem processar.
+        spark = None
         try:
+            valid_key = silver_exec.storage_path
+            rejected_key = build_silver_rejected_path(dataset.nome, silver_exec.id)
+
+            valid_bytes = download(
+                bucket=settings.minio_bucket,
+                key=valid_key,
+                endpoint=settings.minio_endpoint,
+                access_key=settings.minio_access_key,
+                secret_key=settings.minio_secret_key,
+            )
+            rejected_bytes = download(
+                bucket=settings.minio_bucket,
+                key=rejected_key,
+                endpoint=settings.minio_endpoint,
+                access_key=settings.minio_access_key,
+                secret_key=settings.minio_secret_key,
+            )
+
+            valid_local = Path("/tmp") / f"{gold_exec.id}_valid.parquet"
+            rejected_local = Path("/tmp") / f"{gold_exec.id}_rejected.parquet"
+            valid_local.write_bytes(valid_bytes)
+            rejected_local.write_bytes(rejected_bytes)
+
+            print(f"[Download] valid    {len(valid_bytes)} bytes -> {valid_local}")
+            print(f"[Download] rejected {len(rejected_bytes)} bytes -> {rejected_local}")
+
+            spark = build_spark(f"silver_to_gold:{gold_exec.id}")
             valid_df = spark.read.parquet(str(valid_local))
             rejected_df = spark.read.parquet(str(rejected_local)).cache()
 
@@ -167,7 +171,8 @@ def run(silver_execution_id: UUID) -> UUID:
             print(f"[Error] {exc}")
             raise
         finally:
-            spark.stop()
+            if spark is not None:
+                spark.stop()
 
 
 def main() -> None:

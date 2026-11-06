@@ -64,3 +64,30 @@ def test_run_unknown_execution_raises_precondition_error():
 
     with pytest.raises(PreconditionError):
         run(UUID("00000000-0000-0000-0000-000000000000"))
+
+
+def test_falha_no_download_marca_silver_failed_e_permite_retry(db, bronze_execution):
+    # regressão: o download rodava fora do try e deixava a Silver RUNNING;
+    # com o índice de idempotência, o retry desistia em vez de reprocessar
+    from dataflow_common.storage import StorageUnavailableError
+
+    from processing.bronze_to_silver import run
+
+    with patch(
+        "processing.bronze_to_silver.download",
+        side_effect=StorageUnavailableError("minio fora"),
+    ):
+        with pytest.raises(StorageUnavailableError):
+            run(bronze_execution.id)
+
+    db.expire_all()
+    silvers = db.query(Execution).filter(Execution.layer == "SILVER").all()
+    assert [s.status for s in silvers] == ["FAILED"]
+
+    run(bronze_execution.id)  # retry: MinIO de volta
+
+    db.expire_all()
+    statuses = sorted(
+        s.status for s in db.query(Execution).filter(Execution.layer == "SILVER")
+    )
+    assert statuses == ["FAILED", "SUCCESS"]
