@@ -14,6 +14,7 @@ class Settings(BaseSettings):
     reconcile_after_minutes: int = 10  # espera antes de dar a Bronze como perdida
     reconcile_max_age_hours: int = 24  # nao ressuscita Bronze antiga
     reconcile_max_attempts: int = 3  # tentativas de Silver por Bronze
+    reconcile_interval_seconds: int = 300  # na demo, baixe pra ver a perda voltar
 
 
 settings = Settings()

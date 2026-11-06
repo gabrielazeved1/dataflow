@@ -20,7 +20,7 @@ celery_app.conf.update(
         },
         "reconcile-bronzes": {
             "task": "processing.reconcile_bronzes",
-            "schedule": 300.0,
+            "schedule": float(settings.reconcile_interval_seconds),
         },
     },
 )
