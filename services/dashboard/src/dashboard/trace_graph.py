@@ -1,5 +1,6 @@
-from datetime import datetime
 from typing import Any
+
+from dashboard.timefmt import DISPLAY_TZ, parse_ts
 
 DONE = "#22c55e"
 ACTIVE = "#eab308"
@@ -23,10 +24,6 @@ _NODES = {
 def _dot(text: str) -> str:
     # quebra de linha no dot é o escape \n, nao o caractere
     return text.replace("\n", "\\n")
-
-
-def parse_ts(value: str) -> datetime:
-    return datetime.fromisoformat(value.replace("Z", "+00:00"))
 
 
 def summarize(trace: dict[str, Any]) -> str:
@@ -132,7 +129,7 @@ def timeline_rows(trace: dict[str, Any]) -> list[dict[str, str]]:
         delta = f"+{(ts - previous).total_seconds():.2f}s" if previous else ""
         rows.append(
             {
-                "hora": ts.strftime("%H:%M:%S.%f")[:-3],
+                "hora": ts.astimezone(DISPLAY_TZ).strftime("%H:%M:%S.%f")[:-3],
                 "delta": delta,
                 "servico": event["service"],
                 "passo": event["step"],

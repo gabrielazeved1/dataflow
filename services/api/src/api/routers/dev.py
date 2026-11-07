@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 
 from api.database import get_db
 from api.dev_utils import generate_csv
-from api.services.ingest import ingest_bytes
+from api.services.ingest import UploadRejected, ingest_bytes
 from api.storage import StorageUnavailableError
 
 router = APIRouter(prefix="/dev", tags=["dev"])
@@ -51,5 +51,7 @@ def post_bulk_ingest(
             execution_ids.append(str(execution.id))
     except StorageUnavailableError:
         raise HTTPException(status_code=503, detail="Storage unavailable, try again")
+    except UploadRejected as exc:
+        raise HTTPException(status_code=exc.status_code, detail=str(exc))
 
     return {"count": count, "rows_each": rows, "execution_ids": execution_ids}

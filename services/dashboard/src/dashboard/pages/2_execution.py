@@ -7,6 +7,7 @@ from dashboard.api_client import (
     list_executions,
 )
 from dashboard.styles import apply_theme
+from dashboard.timefmt import fmt
 
 st.set_page_config(page_title="Detalhe — DataFlow", layout="wide")
 apply_theme()
@@ -16,12 +17,14 @@ st.title("Detalhe da execução")
 execution_id = st.query_params.get("execution_id")
 
 if not execution_id:
-    executions = list_executions()[:50]
+    executions = list_executions(limit=50)
     if not executions:
         st.info("Nenhuma execução registrada ainda.")
         st.stop()
     options = {
-        f"{e['created_at']} · {e['layer']} · {e['status']} · {e['id'][:8]}": e["id"]
+        f"{fmt(e['created_at'])} · {e['layer']} · {e['status']} · {e['id'][:8]}": e[
+            "id"
+        ]
         for e in executions
     }
     choice = st.selectbox("Escolha uma execução", list(options.keys()))
@@ -42,10 +45,10 @@ with col1:
     st.markdown(f"**Dataset:** {dataset_name}")
     st.markdown(f"**Layer:** {execution['layer']}")
     st.markdown(f"**Status:** {execution['status']}")
-    st.markdown(f"**Created at:** {execution['created_at']}")
+    st.markdown(f"**Created at:** {fmt(execution['created_at'])}")
 with col2:
-    st.markdown(f"**Started at:** {execution.get('started_at') or '—'}")
-    st.markdown(f"**Finished at:** {execution.get('finished_at') or '—'}")
+    st.markdown(f"**Started at:** {fmt(execution.get('started_at'))}")
+    st.markdown(f"**Finished at:** {fmt(execution.get('finished_at'))}")
     if execution.get("input_execution_id"):
         st.markdown(f"**Input execution:** `{execution['input_execution_id']}`")
     if execution.get("storage_path"):

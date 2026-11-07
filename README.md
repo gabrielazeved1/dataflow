@@ -153,7 +153,7 @@ que usam Spark.
 ```bash
 uv sync --all-packages
 export JAVA_HOME=$(/usr/libexec/java_home -v 21)   # macOS
-uv run pytest -q                                   # 121 testes
+uv run pytest -q                                   # 129 testes
 uv run ruff check . && uv run black --check .
 ```
 

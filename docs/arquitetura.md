@@ -68,6 +68,11 @@ flowchart LR
 | `beat` | `services/processing/Dockerfile` | Celery Beat: agenda `reap_stuck_executions` (60s) e `reconcile_bronzes` (5 min). |
 | `dashboard` | `services/dashboard/Dockerfile` | Streamlit na porta 8501. Fala **só com a API** (`API_URL=http://api:8000`), nunca direto com Postgres ou MinIO. |
 
+Todos os serviços que ficam rodando têm `restart: unless-stopped`: se um
+cair sozinho (ex.: OOM no worker), o Docker reinicia. `minio-init` e
+`db-migrate` são jobs de uma vez e não reiniciam. Parada manual
+(`docker compose stop`/`kill`) não dispara o restart.
+
 A assimetria da V2–V4 (API no compose, Spark rodando no host) **acabou na
 V5a**: o Spark agora roda dentro do container `worker`. Os CLIs
 (`python -m processing.bronze_to_silver <id>`) continuam existindo pra
@@ -138,8 +143,11 @@ Respostas:
   - `db.close()` a cada volta devolve a conexão ao pool durante o
     `sleep`. A thread continua presa (ver Limites).
 - MinIO fora do ar → Bronze `FAILED` e resposta `503`.
-- Outras falhas (tamanho, encoding) → Bronze `FAILED` e resposta `202`
-  normal, com o erro em `error_message`. Nada é enfileirado.
+- Erro de entrada → Bronze `FAILED` registrada e resposta **4xx** com a
+  Execution no corpo (o cliente fica com o id): arquivo acima de
+  `max_file_size_mb` → `413`; encoding inválido ou formato não suportado →
+  `400`. Nada é enfileirado.
+- Erro inesperado (bug) → Bronze `FAILED` e `500`.
 
 ### 3.3 Task `processing.ingest` (worker)
 
@@ -309,6 +317,11 @@ Streamlit com 4 páginas (`services/dashboard/src/dashboard/pages/`):
 
 Todas as chamadas passam por `api_client.py`. O dashboard é um cliente
 da API como qualquer outro e não tem acesso ao banco.
+
+**Fuso:** banco e API guardam e devolvem tudo em UTC (`timestamptz`, ISO
+com `Z`). Só o dashboard converte, pro fuso de `DISPLAY_TZ` (padrão
+`America/Sao_Paulo`), inclusive pra agrupar execuções por dia
+(`timefmt.py`). Logs dos containers ficam em UTC.
 
 ### 3.8 Rastreio (V5f)
 
@@ -485,11 +498,12 @@ O schema vive em JSONB e o código não tem classe por dataset. Adicionar
 um dataset é um POST, não um deploy. O custo é perder a tipagem estática
 dos dados do usuário.
 
-## 8. Testes (121 verdes)
+## 8. Testes (129 verdes)
 
 Banco próprio: `dataflow_test` (o `tests/conftest.py` cria se preciso,
 zera o schema e roda `alembic upgrade head` uma vez por sessão). Rodar
-`pytest` não toca nos dados do compose.
+`pytest` não toca nos dados do compose. O mesmo vale pro MinIO: os testes
+usam o bucket `dataflow-test`, criado e esvaziado no início de cada sessão.
 
 - `tests/integration/`: API via `TestClient`. `TRUNCATE ... CASCADE`
   antes de cada teste; `send_task` sempre com mock (sem Redis real). Cobre
@@ -547,8 +561,6 @@ sequenceDiagram
 
 Os mais visíveis:
 
-- Bronze que falha por erro "comum" (não de storage) responde `202`, não
-  `4xx`. O status certo está na Execution, mas o código HTTP engana.
 - `mode=sync` prende uma thread do threadpool (40) por até 300s. A
   conexão do banco já é liberada entre as voltas do polling.
 - Se a JVM de um processo filho morre, aquele processo fica

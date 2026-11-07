@@ -10,7 +10,7 @@ docker compose up -d --build          # db-migrate aplica a migration e1f3c5a7b9
 curl localhost:8000/health            # {"status":"ok"}
 
 export JAVA_HOME=$(/usr/libexec/java_home -v 21)
-uv run pytest -q                      # 121 passed (usa dataflow_test, nao apaga a demo)
+uv run pytest -q                      # 129 passed (usa dataflow_test, nao apaga a demo)
 uv run ruff check . && uv run black --check .
 ```
 

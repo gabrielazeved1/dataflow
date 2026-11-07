@@ -1,9 +1,10 @@
-from datetime import date, timedelta
+from datetime import timedelta
 
 import pandas as pd
 import streamlit as st
 from dashboard.api_client import list_datasets, list_executions
 from dashboard.styles import apply_theme
+from dashboard.timefmt import fmt, local_date, today_local
 from streamlit_autorefresh import st_autorefresh
 
 st.set_page_config(page_title="Overview — DataFlow", layout="wide")
@@ -13,11 +14,17 @@ st_autorefresh(interval=10_000, key="overview_refresh")
 
 st.title("Overview")
 
-today = date.today()
+# dias contados no fuso de quem le: a api filtra por data utc, entao
+# pede um dia a mais e recorta aqui
+today = today_local()
 seven_days_ago = today - timedelta(days=6)
 
 datasets = list_datasets()
-executions_7d = list_executions(from_=seven_days_ago.isoformat())
+executions_7d = [
+    e
+    for e in list_executions(from_=(seven_days_ago - timedelta(days=1)).isoformat())
+    if local_date(e["created_at"]) >= seven_days_ago
+]
 executions_running = list_executions(status="RUNNING")
 
 failed_7d = [e for e in executions_7d if e["status"] == "FAILED"]
@@ -34,7 +41,7 @@ st.subheader("Execuções por dia (últimos 7 dias)")
 
 if executions_7d:
     df = pd.DataFrame(executions_7d)
-    df["dia"] = pd.to_datetime(df["created_at"]).dt.date
+    df["dia"] = df["created_at"].map(local_date)
     chart_data = df.groupby(["dia", "status"]).size().unstack(fill_value=0)
     st.bar_chart(chart_data)
 else:
@@ -50,7 +57,7 @@ if executions_7d:
     for e in executions_7d[:10]:
         rows.append(
             {
-                "created_at": e["created_at"],
+                "created_at": fmt(e["created_at"]),
                 "dataset": dataset_by_id.get(e["dataset_id"], "—"),
                 "layer": e["layer"],
                 "status": e["status"],
