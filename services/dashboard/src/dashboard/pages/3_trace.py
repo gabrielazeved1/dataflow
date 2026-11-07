@@ -2,7 +2,8 @@ import pandas as pd
 import streamlit as st
 from dashboard.api_client import get_trace, list_recent_bronzes
 from dashboard.styles import apply_theme
-from dashboard.trace_graph import build_dot, parse_ts, summarize, timeline_rows
+from dashboard.timefmt import fmt, parse_ts
+from dashboard.trace_graph import build_dot, summarize, timeline_rows
 from streamlit_autorefresh import st_autorefresh
 
 st.set_page_config(page_title="Rastreio — DataFlow", layout="wide")
@@ -25,7 +26,9 @@ if follow:
     bronze_id = bronzes[0]["id"]
 else:
     options = {
-        f"{b['created_at'][11:19]} · {b['file_name']} · {b['id'][:8]}": b["id"]
+        f"{fmt(b['created_at'], '%H:%M:%S')} · {b['file_name']} · {b['id'][:8]}": b[
+            "id"
+        ]
         for b in bronzes
     }
     bronze_id = options[st.selectbox("Ingestão", list(options.keys()))]

@@ -42,3 +42,5 @@ def test_requeued_request_shows_reconciler_and_queue():
 def test_timeline_has_deltas():
     rows = timeline_rows(_trace(["received", "bronze_stored"]))
     assert [r["delta"] for r in rows] == ["", "+1.00s"]
+    # 00:00 utc aparece como 21:00 do dia anterior em brasilia
+    assert rows[0]["hora"] == "21:00:00.000"

@@ -318,6 +318,11 @@ Streamlit com 4 páginas (`services/dashboard/src/dashboard/pages/`):
 Todas as chamadas passam por `api_client.py`. O dashboard é um cliente
 da API como qualquer outro e não tem acesso ao banco.
 
+**Fuso:** banco e API guardam e devolvem tudo em UTC (`timestamptz`, ISO
+com `Z`). Só o dashboard converte, pro fuso de `DISPLAY_TZ` (padrão
+`America/Sao_Paulo`), inclusive pra agrupar execuções por dia
+(`timefmt.py`). Logs dos containers ficam em UTC.
+
 ### 3.8 Rastreio (V5f)
 
 Cada passo de uma ingestão vira uma linha em `execution_event`, com
