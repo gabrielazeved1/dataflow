@@ -138,8 +138,11 @@ Respostas:
   - `db.close()` a cada volta devolve a conexão ao pool durante o
     `sleep`. A thread continua presa (ver Limites).
 - MinIO fora do ar → Bronze `FAILED` e resposta `503`.
-- Outras falhas (tamanho, encoding) → Bronze `FAILED` e resposta `202`
-  normal, com o erro em `error_message`. Nada é enfileirado.
+- Erro de entrada → Bronze `FAILED` registrada e resposta **4xx** com a
+  Execution no corpo (o cliente fica com o id): arquivo acima de
+  `max_file_size_mb` → `413`; encoding inválido ou formato não suportado →
+  `400`. Nada é enfileirado.
+- Erro inesperado (bug) → Bronze `FAILED` e `500`.
 
 ### 3.3 Task `processing.ingest` (worker)
 
@@ -547,8 +550,6 @@ sequenceDiagram
 
 Os mais visíveis:
 
-- Bronze que falha por erro "comum" (não de storage) responde `202`, não
-  `4xx`. O status certo está na Execution, mas o código HTTP engana.
 - `mode=sync` prende uma thread do threadpool (40) por até 300s. A
   conexão do banco já é liberada entre as voltas do polling.
 - Se a JVM de um processo filho morre, aquele processo fica

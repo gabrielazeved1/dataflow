@@ -10,6 +10,14 @@ from api.config import settings
 from api.storage import StorageUnavailableError, upload_bronze
 
 
+# erro de entrada do cliente: a bronze fica FAILED e a api responde 4xx
+class UploadRejected(Exception):
+    def __init__(self, status_code: int, message: str) -> None:
+        super().__init__(message)
+        self.status_code = status_code
+        self.execution: Execution | None = None
+
+
 def ingest_bytes(
     db: Session,
     dataset: Dataset,
@@ -37,12 +45,15 @@ def ingest_bytes(
 
     try:
         if len(content) > settings.max_file_size_mb * 1024 * 1024:
-            raise ValueError(f"File exceeds {settings.max_file_size_mb}MB")
+            raise UploadRejected(413, f"File exceeds {settings.max_file_size_mb}MB")
 
         # dataset legado com format != csv
         if dataset.format != "csv":
-            raise ValueError(f"Unsupported format '{dataset.format}'")
-        content.decode("utf-8")
+            raise UploadRejected(400, f"Unsupported format '{dataset.format}'")
+        try:
+            content.decode("utf-8")
+        except UnicodeDecodeError:
+            raise UploadRejected(400, "File is not valid UTF-8") from None
 
         checksum = hashlib.sha256(content).hexdigest()
         storage_path = upload_bronze(content, dataset.name, execution.id, filename)
@@ -64,14 +75,24 @@ def ingest_bytes(
         trace("failed", "minio indisponivel", error=str(exc))
         raise
 
-    except Exception as exc:
+    except UploadRejected as exc:
         execution.status = "FAILED"
         execution.finished_at = datetime.now(timezone.utc)
         execution.error_message = str(exc)
         db.commit()
         db.refresh(execution)
         trace("failed", "bronze rejeitada", error=str(exc))
-        return execution
+        exc.execution = execution
+        raise
+
+    except Exception as exc:
+        # bug nosso, nao do cliente: registra e deixa virar 500
+        execution.status = "FAILED"
+        execution.finished_at = datetime.now(timezone.utc)
+        execution.error_message = str(exc)
+        db.commit()
+        trace("failed", "erro inesperado na ingestao", error=str(exc))
+        raise
 
     try:
         celery_client.send_task("processing.ingest", args=[str(execution.id)])

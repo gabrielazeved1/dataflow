@@ -5,11 +5,13 @@ from uuid import UUID
 
 from dataflow_common.models import Dataset, Execution
 from fastapi import APIRouter, Depends, File, HTTPException, Query, Response, UploadFile
+from fastapi.encoders import jsonable_encoder
+from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 
 from api.database import get_db
 from api.schemas import ExecutionResponse
-from api.services.ingest import ingest_bytes
+from api.services.ingest import UploadRejected, ingest_bytes
 from api.storage import StorageUnavailableError
 
 router = APIRouter(prefix="/datasets", tags=["ingestion"])
@@ -78,8 +80,12 @@ def ingest(
         execution = ingest_bytes(db, dataset, file.filename, content)
     except StorageUnavailableError:
         raise HTTPException(status_code=503, detail="Storage unavailable, try again")
+    except UploadRejected as exc:
+        # corpo traz a execution FAILED pro cliente ter o id da bronze
+        body = ExecutionResponse.model_validate(exc.execution)
+        return JSONResponse(status_code=exc.status_code, content=jsonable_encoder(body))
 
-    if mode == "async" or execution.status == "FAILED":
+    if mode == "async":
         return execution
 
     try:

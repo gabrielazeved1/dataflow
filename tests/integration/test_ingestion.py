@@ -63,19 +63,50 @@ def test_create_dataset_json_rejected(client):
     assert response.status_code == 422
 
 
-def test_ingest_invalid_utf8_fails(client):
+def test_ingest_invalid_utf8_returns_400_and_records_failed(client):
+    # antes respondia 202: o codigo http mentia pro cliente
     dataset_id = _create_dataset(client, "vendas")
     response = client.post(
         f"/datasets/{dataset_id}/ingest",
         files={"file": ("vendas.csv", b"\xff\xfe\x00binario", "text/csv")},
     )
 
-    assert response.status_code == 202
+    assert response.status_code == 400
     data = response.json()
     assert data["status"] == "FAILED"
-    assert data["error_message"] is not None
+    assert data["error_message"] == "File is not valid UTF-8"
     assert data["checksum"] is None
     assert data["storage_path"] is None
+
+
+def test_ingest_file_too_large_returns_413(client):
+    dataset_id = _create_dataset(client, "vendas")
+    with patch("api.services.ingest.settings.max_file_size_mb", 0):
+        response = client.post(
+            f"/datasets/{dataset_id}/ingest",
+            files={"file": ("vendas.csv", VALID_CSV, "text/csv")},
+        )
+
+    assert response.status_code == 413
+    assert response.json()["status"] == "FAILED"
+
+
+def test_ingest_unexpected_error_records_failed_and_raises(client, db):
+    # bug nosso nao pode virar 202: a bronze fica FAILED e o erro sobe (500)
+    import pytest
+    from dataflow_common.models import Execution
+
+    dataset_id = _create_dataset(client, "vendas")
+    with patch("api.services.ingest.upload_bronze", side_effect=RuntimeError("bug")):
+        with pytest.raises(RuntimeError):
+            client.post(
+                f"/datasets/{dataset_id}/ingest",
+                files={"file": ("vendas.csv", VALID_CSV, "text/csv")},
+            )
+
+    execution = db.query(Execution).one()
+    assert execution.status == "FAILED"
+    assert execution.error_message == "bug"
 
 
 def test_ingest_legacy_json_dataset_fails(client, db):
@@ -91,6 +122,7 @@ def test_ingest_legacy_json_dataset_fails(client, db):
             files={"file": ("dados.json", b'[{"a": 1}]', "application/json")},
         )
 
+    assert response.status_code == 400
     data = response.json()
     assert data["status"] == "FAILED"
     assert "Unsupported format" in data["error_message"]
