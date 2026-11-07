@@ -68,6 +68,11 @@ flowchart LR
 | `beat` | `services/processing/Dockerfile` | Celery Beat: agenda `reap_stuck_executions` (60s) e `reconcile_bronzes` (5 min). |
 | `dashboard` | `services/dashboard/Dockerfile` | Streamlit na porta 8501. Fala **só com a API** (`API_URL=http://api:8000`), nunca direto com Postgres ou MinIO. |
 
+Todos os serviços que ficam rodando têm `restart: unless-stopped`: se um
+cair sozinho (ex.: OOM no worker), o Docker reinicia. `minio-init` e
+`db-migrate` são jobs de uma vez e não reiniciam. Parada manual
+(`docker compose stop`/`kill`) não dispara o restart.
+
 A assimetria da V2–V4 (API no compose, Spark rodando no host) **acabou na
 V5a**: o Spark agora roda dentro do container `worker`. Os CLIs
 (`python -m processing.bronze_to_silver <id>`) continuam existindo pra

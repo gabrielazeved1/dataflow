@@ -1,5 +1,7 @@
 services:
   postgres:
+    # volta sozinho se cair (ex.: oom); minio-init e db-migrate sao jobs de uma vez, sem restart
+    restart: unless-stopped
     image: postgres:16-alpine
     environment:
       POSTGRES_DB: ${POSTGRES_DB}
@@ -17,6 +19,7 @@ services:
       retries: 5
 
   minio:
+    restart: unless-stopped
     image: alpine/minio:RELEASE.2025-10-15T17-29-55Z
     user: root
     command: server /data --console-address ":9001"
@@ -52,6 +55,7 @@ services:
 
   # broker do celery. sem volume: task perdida o reconciler reenfileira
   redis:
+    restart: unless-stopped
     image: redis:7-alpine
     ports:
       - "6379:6379"
@@ -80,6 +84,7 @@ services:
     command: uv run --package dataflow-api alembic upgrade head
 
   api:
+    restart: unless-stopped
     build:
       context: .
       dockerfile: services/api/Dockerfile
@@ -106,6 +111,7 @@ services:
     command: uv run --package dataflow-api uvicorn api.main:app --host 0.0.0.0 --port 8000 --reload
 
   worker:
+    restart: unless-stopped
     build:
       context: .
       dockerfile: services/processing/Dockerfile
@@ -133,6 +139,7 @@ services:
       worker --loglevel=info --concurrency=${WORKER_CONCURRENCY:-2}
 
   beat:
+    restart: unless-stopped
     build:
       context: .
       dockerfile: services/processing/Dockerfile
@@ -153,6 +160,7 @@ services:
     command: uv run --package dataflow-processing celery -A processing.celery_app beat --loglevel=info
 
   dashboard:
+    restart: unless-stopped
     build:
       context: .
       dockerfile: services/dashboard/Dockerfile
