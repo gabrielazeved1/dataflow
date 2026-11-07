@@ -498,7 +498,7 @@ O schema vive em JSONB e o código não tem classe por dataset. Adicionar
 um dataset é um POST, não um deploy. O custo é perder a tipagem estática
 dos dados do usuário.
 
-## 8. Testes (121 verdes)
+## 8. Testes (129 verdes)
 
 Banco próprio: `dataflow_test` (o `tests/conftest.py` cria se preciso,
 zera o schema e roda `alembic upgrade head` uma vez por sessão). Rodar
