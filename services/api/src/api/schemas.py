@@ -110,3 +110,21 @@ class ExecutionDetailResponse(ExecutionResponse):
 
 class RejectedRowsResponse(BaseModel):
     rows: list[dict[str, Any]]
+
+
+class TraceEventResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    execution_id: UUID | None = None
+    service: str
+    step: str
+    message: str
+    details: dict[str, Any] | None = None
+    created_at: datetime
+
+
+class TraceResponse(BaseModel):
+    trace_id: UUID
+    dataset_name: str
+    executions: list[ExecutionResponse]
+    events: list[TraceEventResponse]

@@ -57,6 +57,6 @@ if executions_7d:
                 "id": e["id"],
             }
         )
-    st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
+    st.dataframe(pd.DataFrame(rows), width="stretch", hide_index=True)
 else:
     st.info("Sem execuções para listar.")

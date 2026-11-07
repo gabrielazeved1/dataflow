@@ -38,6 +38,17 @@ def create_execution(
     return execution
 
 
+def get_trace_root(session: Session, execution: Execution) -> UUID:
+    # sobe gold -> silver -> bronze; a bronze é o trace_id
+    current = execution
+    while current.input_execution_id is not None:
+        parent = get_execution(session, current.input_execution_id)
+        if parent is None:
+            break
+        current = parent
+    return current.id
+
+
 # a Execution saiu de RUNNING por outro caminho (ex.: reaper)
 class ExecutionAlreadyFinishedError(Exception):
     pass

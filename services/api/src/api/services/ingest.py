@@ -1,6 +1,7 @@
 import hashlib
 from datetime import datetime, timezone
 
+from dataflow_common.events import trace_event
 from dataflow_common.models import Dataset, Execution
 from sqlalchemy.orm import Session
 
@@ -27,6 +28,12 @@ def ingest_bytes(
     db.add(execution)
     db.commit()
     db.refresh(execution)
+    bind = db.get_bind()
+
+    def trace(step: str, message: str, **details) -> None:
+        trace_event(bind, execution.id, "api", step, message, execution.id, **details)
+
+    trace("received", f"{filename} recebido", size=len(content))
 
     try:
         if len(content) > settings.max_file_size_mb * 1024 * 1024:
@@ -47,12 +54,14 @@ def ingest_bytes(
         execution.storage_path = storage_path
         db.commit()
         db.refresh(execution)
+        trace("bronze_stored", "bronze gravada no minio", path=storage_path)
 
     except StorageUnavailableError as exc:
         execution.status = "FAILED"
         execution.finished_at = datetime.now(timezone.utc)
         execution.error_message = str(exc)
         db.commit()
+        trace("failed", "minio indisponivel", error=str(exc))
         raise
 
     except Exception as exc:
@@ -61,7 +70,18 @@ def ingest_bytes(
         execution.error_message = str(exc)
         db.commit()
         db.refresh(execution)
+        trace("failed", "bronze rejeitada", error=str(exc))
         return execution
 
-    celery_client.send_task("processing.ingest", args=[str(execution.id)])
+    try:
+        celery_client.send_task("processing.ingest", args=[str(execution.id)])
+    except Exception as exc:
+        # bronze ja esta salva: o reconciler reenfileira, nao é erro pro cliente
+        trace(
+            "enqueue_failed",
+            "redis indisponivel, reconciler reenfileira",
+            error=str(exc),
+        )
+        return execution
+    trace("enqueued", "task enfileirada no redis")
     return execution

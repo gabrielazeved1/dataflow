@@ -107,3 +107,18 @@ def test_task_enqueues_ingest_for_each_bronze(db, dataset):
 
     assert count == 2
     assert {c.args[0] for c in delay.call_args_list} == {str(b1.id), str(b2.id)}
+
+
+def test_task_records_requeued_event(db, dataset):
+    from dataflow_common.models import ExecutionEvent
+
+    b = _bronze(db, dataset)
+    with patch.object(tasks.ingest, "delay"):
+        tasks.reconcile_bronzes()
+
+    event = db.query(ExecutionEvent).one()
+    assert (event.trace_id, event.service, event.step) == (
+        b.id,
+        "reconciler",
+        "requeued",
+    )

@@ -1,0 +1,13 @@
+# timeouts curtos pra demonstrar falha e recuperacao em minutos, nao em meia hora
+# uso: docker compose -f docker-compose.yml -f docker-compose.demo.yml up -d worker beat
+# voltar ao normal: docker compose up -d worker beat
+x-demo-timeouts: &demo-timeouts
+  EXECUTION_TIMEOUT_MINUTES: "1"
+  RECONCILE_AFTER_MINUTES: "1"
+  RECONCILE_INTERVAL_SECONDS: "30"
+
+services:
+  worker:
+    environment: *demo-timeouts
+  beat:
+    environment: *demo-timeouts

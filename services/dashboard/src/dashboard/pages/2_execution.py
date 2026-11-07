@@ -95,4 +95,4 @@ elif layer == "SILVER":
         if not rows:
             st.success("Nenhuma linha rejeitada nessa execução.")
         else:
-            st.dataframe(pd.DataFrame(rows), use_container_width=True)
+            st.dataframe(pd.DataFrame(rows), width="stretch")

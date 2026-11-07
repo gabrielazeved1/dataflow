@@ -5,6 +5,7 @@ from operator import and_
 from pathlib import Path
 from uuid import UUID
 
+from dataflow_common.events import trace_event
 from dataflow_common.repository import (
     ExecutionAlreadyFinishedError,
     finish_execution,
@@ -68,20 +69,24 @@ def run(bronze_execution_id: UUID) -> UUID:
         if dataset is None:
             raise PreconditionError(f"Dataset {bronze_exec.dataset_id} nao encontrado")
 
-        print(f"[Bronze] execution={bronze_exec.id}")
-        print(f"         storage_path={bronze_exec.storage_path}")
-        print(f"         file_name={bronze_exec.file_name}")
-        print(f"[Dataset] id={dataset.id} name={dataset.name} format={dataset.format}")
-        print(f"          fields={[f['name'] for f in dataset.schema['fields']]}")
+        bind = session.get_bind()
+        trace_id = bronze_exec.id
 
         silver_exec, created = start_child_execution(
             session, dataset_id=dataset.id, parent_id=bronze_exec.id, layer="SILVER"
         )
         if not created:
-            print(f"[Skip] Silver ja existe: {silver_exec.id} status=SUCCESS")
+            trace_event(
+                bind, trace_id, "worker", "skipped", "silver ja existe", silver_exec.id
+            )
             return silver_exec.id
 
-        print(f"[Silver] execution={silver_exec.id} status={silver_exec.status}")
+        def trace(step: str, message: str, **details) -> None:
+            trace_event(
+                bind, trace_id, "worker", step, message, silver_exec.id, **details
+            )
+
+        trace("silver_started", "worker pegou a bronze")
 
         # tudo apos criar a filha fica no try: filha presa em RUNNING bloqueia o retry
         spark = None
@@ -97,7 +102,9 @@ def run(bronze_execution_id: UUID) -> UUID:
             local_path = Path("/tmp") / f"{silver_exec.id}.csv"
             local_path.write_bytes(bronze_bytes)
 
-            print(f"[Download] {len(bronze_bytes)} bytes -> {local_path}")
+            trace(
+                "bronze_downloaded", "bronze baixada do minio", size=len(bronze_bytes)
+            )
 
             base_struct = build_struct_type(dataset.schema)
             read_struct = StructType(
@@ -119,12 +126,13 @@ def run(bronze_execution_id: UUID) -> UUID:
             valid_count = valid_df.count()
             rejected_count = rejected_df.count()
 
-            print(
-                f"[Split] total={total} valid={valid_count} rejected={rejected_count}"
+            trace(
+                "spark_validated",
+                f"{total} linhas: {valid_count} validas, {rejected_count} rejeitadas",
+                total=total,
+                valid=valid_count,
+                rejected=rejected_count,
             )
-            if rejected_count > 0:
-                print("[Rejected] amostras:")
-                rejected_df.show(5, truncate=False)
 
             dt = datetime.now(timezone.utc).strftime("%Y-%m-%d")
 
@@ -157,18 +165,21 @@ def run(bronze_execution_id: UUID) -> UUID:
                 secret_key=settings.minio_secret_key,
             )
 
-            print(f"[Upload] valid -> {silver_key}")
-            print(f"[Upload] rejected -> {rejected_key}")
-
             finish_execution(session, silver_exec, "SUCCESS", storage_path=silver_key)
-            print("[Done] status=SUCCESS")
+            trace(
+                "silver_stored",
+                "silver e _rejected gravadas no minio",
+                path=silver_key,
+                rejected_path=rejected_key,
+            )
             return silver_exec.id
         except ExecutionAlreadyFinishedError:
             # o reaper ja marcou FAILED
+            trace("failed", "reaper ja tinha marcado timeout")
             raise
         except Exception as exc:
             finish_execution(session, silver_exec, "FAILED", error_message=str(exc))
-            print(f"[Error] {exc}")
+            trace("failed", "erro na silver", error=str(exc))
             raise
         finally:
             if spark is not None:

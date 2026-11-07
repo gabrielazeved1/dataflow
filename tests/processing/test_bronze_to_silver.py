@@ -87,3 +87,24 @@ def test_download_failure_marks_silver_failed_and_allows_retry(db, bronze_execut
         s.status for s in db.query(Execution).filter(Execution.layer == "SILVER")
     )
     assert statuses == ["FAILED", "SUCCESS"]
+
+
+def test_run_records_trace_events(db, bronze_execution):
+    from dataflow_common.models import ExecutionEvent
+    from processing.bronze_to_silver import run
+
+    run(bronze_execution.id)
+
+    events = (
+        db.query(ExecutionEvent)
+        .filter(ExecutionEvent.trace_id == bronze_execution.id)
+        .order_by(ExecutionEvent.created_at)
+        .all()
+    )
+    assert [e.step for e in events] == [
+        "silver_started",
+        "bronze_downloaded",
+        "spark_validated",
+        "silver_stored",
+    ]
+    assert events[2].details == {"total": 2, "valid": 2, "rejected": 0}
