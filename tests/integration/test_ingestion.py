@@ -1,6 +1,9 @@
+import os
 from unittest.mock import patch
 
 from dataflow_common.storage import StorageUnavailableError
+
+BUCKET = os.environ["MINIO_BUCKET"]  # definido no tests/conftest.py
 
 SALES_SCHEMA = {
     "fields": [
@@ -50,7 +53,7 @@ def test_ingest_file_exists_in_minio(client, minio_client):
     )
 
     storage_path = response.json()["storage_path"]
-    obj = minio_client.get_object(Bucket="dataflow", Key=storage_path)
+    obj = minio_client.get_object(Bucket=BUCKET, Key=storage_path)
     assert obj["Body"].read() == csv_content
 
 

@@ -497,7 +497,8 @@ dos dados do usuário.
 
 Banco próprio: `dataflow_test` (o `tests/conftest.py` cria se preciso,
 zera o schema e roda `alembic upgrade head` uma vez por sessão). Rodar
-`pytest` não toca nos dados do compose.
+`pytest` não toca nos dados do compose. O mesmo vale pro MinIO: os testes
+usam o bucket `dataflow-test`, criado e esvaziado no início de cada sessão.
 
 - `tests/integration/`: API via `TestClient`. `TRUNCATE ... CASCADE`
   antes de cada teste; `send_task` sempre com mock (sem Redis real). Cobre

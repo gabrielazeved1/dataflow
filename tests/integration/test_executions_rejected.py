@@ -1,3 +1,4 @@
+import os
 from datetime import datetime, timezone
 from io import BytesIO
 
@@ -6,6 +7,8 @@ import pyarrow.parquet as pq
 import pytest
 from dataflow_common.models import Dataset, Execution
 from dataflow_common.storage import build_silver_rejected_path
+
+BUCKET = os.environ["MINIO_BUCKET"]  # definido no tests/conftest.py
 
 SCHEMA = {"fields": [{"name": "produto", "type": "string", "required": True}]}
 
@@ -42,7 +45,7 @@ def _upload_rejected_parquet(minio_client, dataset_name, execution_id, rows):
     pq.write_table(table, buf)
     buf.seek(0)
     key = build_silver_rejected_path(dataset_name, execution_id)
-    minio_client.put_object(Bucket="dataflow", Key=key, Body=buf.getvalue())
+    minio_client.put_object(Bucket=BUCKET, Key=key, Body=buf.getvalue())
 
 
 def test_rejected_unknown_execution(client):

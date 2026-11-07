@@ -3,7 +3,6 @@ import os
 os.environ.setdefault("MINIO_ENDPOINT", "localhost:9000")
 os.environ.setdefault("MINIO_ACCESS_KEY", "minioadmin")
 os.environ.setdefault("MINIO_SECRET_KEY", "minioadmin")
-os.environ.setdefault("MINIO_BUCKET", "dataflow")
 
 import boto3
 import pytest
@@ -59,7 +58,7 @@ def _make_bronze(db, csv_content: bytes):
     execution = create_execution(db, dataset_id=dataset.id, layer="BRONZE")
     storage_path = build_bronze_path(dataset.name, execution.id, "vendas.csv")
     upload(
-        bucket="dataflow",
+        bucket=os.environ["MINIO_BUCKET"],
         key=storage_path,
         body=csv_content,
         endpoint="localhost:9000",

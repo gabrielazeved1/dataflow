@@ -1,4 +1,5 @@
 import io
+import os
 import sys
 from unittest.mock import patch
 
@@ -6,6 +7,8 @@ import pyarrow.parquet as pq
 import pytest
 from dataflow_common.models import Execution, ExecutionMetrics
 from processing.silver_to_gold import main
+
+BUCKET = os.environ["MINIO_BUCKET"]  # definido no tests/conftest.py
 
 
 def _run(execution_id):
@@ -27,7 +30,7 @@ def test_parquet_exists_in_minio(db, silver_execution, minio_client):
 
     db.expire_all()
     gold = db.query(Execution).filter(Execution.layer == "GOLD").first()
-    minio_client.head_object(Bucket="dataflow", Key=gold.storage_path)
+    minio_client.head_object(Bucket=BUCKET, Key=gold.storage_path)
 
 
 def test_metrics_are_correct(db, silver_execution, minio_client):
@@ -35,7 +38,7 @@ def test_metrics_are_correct(db, silver_execution, minio_client):
 
     db.expire_all()
     gold = db.query(Execution).filter(Execution.layer == "GOLD").first()
-    obj = minio_client.get_object(Bucket="dataflow", Key=gold.storage_path)
+    obj = minio_client.get_object(Bucket=BUCKET, Key=gold.storage_path)
     rows = pq.read_table(io.BytesIO(obj["Body"].read())).to_pylist()
 
     assert len(rows) == 1
