@@ -25,7 +25,7 @@ st.divider()
 
 st.subheader("Taxa de rejeição (últimas 20 Golds)")
 
-golds = list_executions(dataset=name, layer="GOLD", status="SUCCESS")[:20]
+golds = list_executions(dataset=name, layer="GOLD", status="SUCCESS", limit=20)
 
 if not golds:
     st.info("Nenhuma execução GOLD SUCCESS para este dataset.")

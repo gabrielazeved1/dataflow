@@ -19,6 +19,10 @@ def list_datasets() -> list[dict]:
     return _get("/datasets/")
 
 
+_PAGE_SIZE = 200
+_MAX_PAGES = 50  # teto de 10 mil execucoes por consulta
+
+
 @st.cache_data(ttl=5)
 def list_executions(
     dataset: str | None = None,
@@ -26,7 +30,9 @@ def list_executions(
     layer: str | None = None,
     from_: str | None = None,
     to: str | None = None,
+    limit: int | None = None,
 ) -> list[dict]:
+    # a api pagina por cursor: sem percorrer as paginas os kpis travavam em 50
     params = {
         "dataset": dataset,
         "status": status,
@@ -35,7 +41,23 @@ def list_executions(
         "to": to,
     }
     params = {k: v for k, v in params.items() if v is not None}
-    return _get("/executions/", params=params)["items"]
+    page_size = min(limit, _PAGE_SIZE) if limit else _PAGE_SIZE
+    items: list[dict] = []
+    cursor = None
+    for _ in range(_MAX_PAGES):
+        page = _get(
+            "/executions/",
+            params={
+                **params,
+                "limit": page_size,
+                **({"after": cursor} if cursor else {}),
+            },
+        )
+        items.extend(page["items"])
+        cursor = page["next_cursor"]
+        if cursor is None or (limit and len(items) >= limit):
+            break
+    return items[:limit] if limit else items
 
 
 @st.cache_data(ttl=5)

@@ -16,7 +16,7 @@ st.title("Detalhe da execução")
 execution_id = st.query_params.get("execution_id")
 
 if not execution_id:
-    executions = list_executions()[:50]
+    executions = list_executions(limit=50)
     if not executions:
         st.info("Nenhuma execução registrada ainda.")
         st.stop()
